@@ -33,9 +33,10 @@ export function stepTime(dt, o = {}) {
   if (!S.flags.freezeTime && !o.frozen) S.time += dt * tune.get('time_scale') / 60;
   const w = S.weather;
   if (w.blend < 1) w.blend = Math.min(1, w.blend + dt / 120 * (tune.get('time_scale') / 30));
+  if (ctx.weatherHold && w.kind !== ctx.weatherHold) { w.from = w.kind; w.kind = ctx.weatherHold; w.blend = 0; w.next = S.time + 60; }
   if (S.time >= w.next && !S.flags.freezeWeather) {
     const p = ctx.player ? posOf(ctx.player.being) : { x: 0, y: 0, z: 0 }, h = hour();
-    w.from = w.kind; w.kind = p.z / M > 120 ? 'snow' : rollWeather(weatherRnd, p.z / M > 90, h > 4.5 && h < 8 && Math.hypot(p.x / M - 330, p.y / M - 1290) < 400); w.blend = 0; w.next = S.time + (180 + weatherRnd() * 180);
+    w.from = w.kind; w.kind = ctx.weatherHold ? ctx.weatherHold : p.z / M > 120 ? 'snow' : rollWeather(weatherRnd, p.z / M > 90, h > 4.5 && h < 8 && Math.hypot(p.x / M - 330, p.y / M - 1290) < 400); w.blend = 0; w.next = S.time + (180 + weatherRnd() * 180);
   }
 }
 /** where the player is: a place found (Discovered), the high ground always snows */

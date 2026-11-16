@@ -54,6 +54,6 @@ export function stepInteract(P, dt) {
     P.interactHeld = 0; P._heldUsed = false;
   }
   // a click uses the focus too when no weapon or spell is out (Part H.5)
-  if (I.pressed('attack') && P.sheathed && !P._heldUsed) { U.use(t, P); I.consume && I.consume('attack'); }
+  if (I.pressed('attack') && P.sheathed && !P.forceFists && !(P.focus.being && P.focus.being.angry) && !P._heldUsed) { U.use(t, P); I.consume && I.consume('attack'); }
 }
 export { USE };

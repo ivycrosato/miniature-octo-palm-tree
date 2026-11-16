@@ -24,3 +24,5 @@ D('sigrun', { hp: 200, dmg: 16, speed: 4.4, team: 'follower', level: 8, armor: 4
 D('dragon_red', { hp: 900, body: 'dragon', team: 'hostile', level: 15, dragon: 'red', r: 40, h: 80 });
 D('dragon_grey', { hp: 1200, body: 'dragon', team: 'hostile', level: 18, dragon: 'grey', r: 40, h: 80 });
 D('jarnorm', { hp: 2400, body: 'dragon', team: 'hostile', level: 25, dragon: 'jarnorm', r: 46, h: 90, boss: true });
+// the people of the towns use this body; their looks and brains come from data/npcs.js
+D('person', { hp: 100, dmg: 8, speed: 4.4, team: 'town', level: 5, armor: 10, ai: 'town', weapon: null, reach: 1.4, moves: 'fists' });

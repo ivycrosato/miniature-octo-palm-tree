@@ -96,7 +96,7 @@ export const INTERIORS = {
     '#............#',
     '#....x.......#',
     '#####@########'] },
-  ashgrip_keep: { look: STONEF, dark: true, rows: [
+  ashgrip_keep: { look: STONEF, dark: true, word: 'elm', rows: [
     '########################',
     '#..........#V..........#',
     '#..........#...........#',
@@ -156,7 +156,7 @@ export const INTERIORS = {
     '##################...@...###################',
     '##################.......###################',
     '############################################'] },
-  ravenmound_barrow: { look: STONEF, dark: true, barrow: true, rows: [
+  ravenmound_barrow: { look: STONEF, dark: true, barrow: true, word: 'var', rows: [
     '########################################################################',
     '##########..F..F..F..F..F...########################..............######',
     '#_______##................c.########################.t............######',
@@ -205,6 +205,7 @@ export function interiorWorld(id) {
   const W = new W3(ctx.game, { level: Object.assign({ rows, legend }, D.look), sky: D.warm ? '#0a0604' : '#05050a', fog: { color: D.warm ? '#1a1008' : '#05060c', near: 260, far: 900 },
     ambient: D.warm ? ['#7a5a3a', '#2a1a10', 2.6] : D.cool ? ['#5a6a8a', '#1a1a24', 2.4] : ['#3a3a54', '#141018', 1.6], torchLights: 6, torchShadows: 1, torchPower: D.warm ? 34 : 26, torchColor: D.cool ? '#c8d8ff' : '#ffc8a0',
     lights: 6, glowLights: 4, overlay: { fov: 70 }, camera: { mode: 'fixed', capture: true, fov: 70 }, gravity: 320 });
+  ctx.worlds[id] = W;
   W.camera.set('fixed'); W.dark = !!D.dark; W.interiorId = id; W.ambientLight = D.dark ? .18 : D.warm ? .55 : .45; W.interiorNight = true;
   const kit = new Kit();
   // hearths: a stone ring and a fire; Voice Stones; coffins in the barrow's walls
@@ -213,10 +214,13 @@ export function interiorWorld(id) {
   if (hearth.length) { const cx = hearth.reduce((s, m) => s + m.x, 0) / hearth.length, cy = hearth.reduce((s, m) => s + m.y, 0) / hearth.length; for (let i = 0; i < 5; i++) torches.push({ x: cx + (i - 2) * 1.2 * M, y: cy, z: hearth[0].z + 6, world: id, fire: true }); }
   for (const v of W.marks.voice || []) { const x = v.x / M, y = v.y / M, z = v.z / M; kit.box(x, y - .3, z, 1.8, .7, 3.1, 0, '#5a5864', K.stone); for (const [a, b] of RUNES) kit.beam([x + a[0], y + .07, z + a[1]], [x + b[0], y + .07, z + b[1]], .08, '#8fd8ff', K.rune); }
   for (const f of W.marks.coffin || []) { const x = f.x / M, y = f.y / M, z = f.z / M; kit.box(x, y, z, .9, .7, 2.2, 0, '#4a3a2a', K.planks); kit.box(x, y + .36, z + .1, .7, .05, 1.9, 0, '#2a2018', K.planks, { solid: false }); }
+  (W.marks.ore || []).forEach((o, i) => { const x = o.x / M, y = o.y / M, z = o.z / M, silver = i % 4 === 3; kit.box(x, y, z + .5, 1.4, 1.1, 1.2, i * .7, '#4a4650', K.stone); for (let k = 0; k < 4; k++) kit.box(x + Math.cos(k * 1.7 + i) * .4, y + Math.sin(k * 1.7 + i) * .4, z + .7 + (k % 2) * .4, .3, .3, .25, k, silver ? '#26242a' : '#a8714d', K.metal, { solid: false }); });
   for (const t of W.marks.tablet || []) { kit.box(t.x / M, t.y / M, t.z / M, 1.4, .3, 1.6, 0, '#6e6a72', K.stone); }
   for (const s of W.marks.seat || []) { const x = s.x / M, y = s.y / M, z = s.z / M; kit.box(x, y - .3, z, 1.6, 1.2, .6, 0, '#5a5864', K.stone); kit.box(x, y - .8, z, 1.6, .3, 2.2, 0, '#5a5864', K.stone); }
   kit.finish(W);
   // the things: the way out, beds, chests, stations, books
+  for (const v of W.marks.voice || []) if (D.word) addThing({ kind: 'voice_stone', world: id, x: v.x, y: v.y + 1.3 * M, z: v.z + 14, word: D.word, r: 2.6 * M });
+  (W.marks.ore || []).forEach((o, i) => addThing({ kind: 'ore', world: id, x: o.x, y: o.y, z: o.z + 12, ore: i % 4 === 3 ? 'coal' : 'iron_ore', r: 2.2 * M, id: id + '_ore' + i }));
   for (const m of W.marks.entry || []) addThing({ kind: 'door', world: id, x: m.x, y: m.y + .6 * M, z: m.z + 12, to: 'hrimdal', from: id, name: 'place.hrimdal', r: 2 * M });
   for (const m of W.marks.bed || []) addThing({ kind: 'bed', world: id, x: m.x, y: m.y, z: m.z + 8, owner: D.bedOwner || id });
   for (const m of W.marks.pot || []) { addThing({ kind: 'station', world: id, x: m.x, y: m.y, z: m.z + 10, station: 'cooking' }); torches.push({ x: m.x, y: m.y, z: m.z + 4, world: id, fire: true, small: true }); }

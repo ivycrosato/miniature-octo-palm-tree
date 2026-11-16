@@ -10,13 +10,18 @@ import { addItem, findItem, equip, count } from '../rpg/inventory.js';
 import { setSkill } from '../rpg/character.js';
 import { spawn } from '../actors/ai.js';
 import { PLACE, U } from '../world/hrimdal.js';
+import { things } from '../world/interact.js';
+import { autoplay, AP, setupAutopilot } from './autopilot.js';
 export const commands = {};
 /** a dev command: also used by Dev Tools and the autopilot */
 export function command(name, fn) { commands[name] = fn; }
 export function setupTestApi() {
   const g = ctx.game;
   command('teleport', (x, y, z) => { const P = ctx.player; if (P) P.teleport(x, y, z); });
-  command('place', id => { const p = PLACE[id]; if (p && ctx.player) commands.travelTo(id); });
+  command('place', (id, dx = 0, dy = 0) => { const p = PLACE[id]; if (!p || !ctx.player) return; const x = (p.x + dx) * U, y = (p.y + dy) * U; if (ctx.worldId !== 'hrimdal') ctx.goWorld('hrimdal', { x, y, facing: 0 }, { instant: true }); else ctx.player.teleport(x, y); });
+  command('autoplay', (on = true, o = {}) => autoplay(on, o));
+  command('face', (x, y) => { const P = ctx.player; P.yaw = Math.atan2(y - P.a.y, x - P.a.x); P.a.facing = P.yaw; });
+  setupAutopilot();
   command('give', (id, n = 1) => { if (id === 'gold') ctx.state.gold += n; else addItem(ctx.state, id, n); });
   command('equip', id => { const it = findItem(ctx.state, id); if (it) equip(ctx.state, it.uid); if (ctx.player) ctx.player.refreshGear(); });
   command('setSkill', (k, v) => setSkill(ctx.state, k, v));
@@ -43,7 +48,8 @@ export function setupTestApi() {
     lines: { missing: () => [...used].filter(id => !E.lang.has(id)) },
     audio: { levels: () => ctx.audio ? ctx.audio.levels() : null },
     net: { stats: () => ctx.net ? ctx.net.stats() : null },
-    count: id => ctx.state ? count(ctx.state, id) : 0, ctx: () => (ctx.test ? ctx : null)
+    autoplay: () => ({ on: AP.on, step: AP.step, log: AP.log.slice(-40), demo: !!AP.demo }),
+    count: id => ctx.state ? count(ctx.state, id) : 0, ctx: () => (ctx.test ? ctx : null), things: f => (ctx.test ? things.filter(f) : null)
   };
   window.__slyrim = api; g.debug = { snapshot: () => api.state() };
 }

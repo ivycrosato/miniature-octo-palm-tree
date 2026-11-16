@@ -82,7 +82,7 @@ function stepPlayer(P, dt) {
   P.moving = Math.hypot(a.vx, a.vy) > 8; P.sprinting = sprint && P.moving;
   P.moveKind = !P.moving ? 'still' : P.sneak ? 'sneak' : P.sprinting ? 'sprint' : speed / M > 3 ? 'run' : 'walk';
   // facing: the move's way with weapons away; the aim with them out (strafing), in first person always the view
-  const armed = !P.sheathed && (hand(S, 'right').kind !== 'fists' || hand(S, 'left').kind !== 'fists');
+  const armed = !P.sheathed && !P.forceFists && (hand(S, 'right').kind !== 'fists' || hand(S, 'left').kind !== 'fists');
   if (P.view === 'first' || (armed && (P.R.mode !== 'idle' || P.L.mode !== 'idle' || P.combatT > 0 || P.aimZoom > 0))) a.facing = E.approachAng(a.facing, P.yaw, dt * 14);
   else if (P.moving) a.facing = E.approachAng(a.facing, Math.atan2(a.vy, a.vx), dt * 10);
   // no-clip: fly with jump and sneak
@@ -149,7 +149,7 @@ function sneakFor(P, kind, wtype) { const S = P.S; return b => { const unaware =
 /** both hands: what each holds decides what its button does (Part F.7) */
 function hands(P, dt) {
   const { S, I, being: B } = P;
-  const right = P.sheathed ? { kind: 'fists' } : hand(S, 'right'), left = P.sheathed ? { kind: 'fists' } : hand(S, 'left');
+  const fists = P.sheathed || P.forceFists, right = fists ? { kind: 'fists' } : hand(S, 'right'), left = fists ? { kind: 'fists' } : hand(S, 'left');
   const rDown = I.down('attack'), lDown = I.down('block');
   if (P.sheathed && (I.pressed('attack') || I.pressed('block'))) { if (!(P.focus && I.pressed('attack'))) { P.sheathed = false; P.refreshGear(); } return; }
   // the right hand
@@ -325,7 +325,7 @@ export function drawFirstPerson(P, world) {
     pen.at(0, 0, 0).tube(sx, sy, sz, (sx + hx) / 2, (sy + hy) / 2 - s, (sz + hz) / 2 - 1, 1.5, sleeve).tube((sx + hx) / 2, (sy + hy) / 2 - s, (sz + hz) / 2 - 1, hx, hy, hz, 1.2, skin).ball(hx, hy, hz, 1.4, 1.4, 1.4, skin);
     if (item) item(hx, hy, hz, s);
   };
-  const right = P.sheathed ? { kind: 'fists' } : hand(S, 'right'), left = P.sheathed ? { kind: 'fists' } : hand(S, 'left');
+  const fists = P.sheathed || P.forceFists, right = fists ? { kind: 'fists' } : hand(S, 'right'), left = fists ? { kind: 'fists' } : hand(S, 'left');
   const swingU = (H) => { const c = H.combo, st = c && c.state; if (!st) return 0; return st.phase === 'wind' ? -st.u * .6 : st.phase === 'active' ? -.6 + st.u * 1.6 : 1 - st.u; };
   const blade = (len, wdt, col) => (x, y, z, s) => { const u = swingU(s > 0 ? P.R : P.L); const tipx = x + 4 + len * .7 * (1 - Math.abs(u) * .3), tipy = y - s * 2 - u * 10 * s, tipz = z + len * .55 - u * 6; pen.bar(x, y, z, tipx, tipy, tipz, wdt, .5, col).box(x, y, z, 1.2, 3.4, 1, '#6a4a30'); };
   const glowIn = col => (x, y, z) => { pen.glow(x + 1.5, y, z + 1, 1.6 + Math.sin(t * 12) * .3, col).halo(x + 1.5, y, z + 1, 4, col); };

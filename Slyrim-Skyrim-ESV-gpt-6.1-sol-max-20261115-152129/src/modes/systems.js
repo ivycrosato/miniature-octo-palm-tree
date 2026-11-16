@@ -24,6 +24,11 @@ import { setupKinds } from '../world/kinds.js';
 import { hubKeys } from '../ui/hub.js';
 import { quickMenu, deathScreen, bookScreen, waitScreen } from '../ui/screens.js';
 import { useItem, useFav } from '../rpg/use.js';
+import { setupEvents } from '../world/events.js';
+import { setupQuests } from '../quests/runtime.js';
+import { stepPeople, people } from '../actors/npcs.js';
+import { talk, bark } from '../ui/dialogue.js';
+import { setupContent } from '../quests/index.js';
 
 export const QUICK = 6;
 const setups = [];
@@ -47,6 +52,9 @@ export function setupSystems() {
     return out;
   };
   setupCore(); setupDoors(); setupKinds(); ctx.goWorld = goWorld;
+  setupQuests(); setupEvents(); ctx.people = people; steppers.push(stepPeople);
+  bus.on('talk', e => talk(e.being)); bus.on('bark', e => { const D = e.being.data.npc && get('dialogue', e.being.data.npc); const id = D && D.bark ? D.bark(e.being, e.id) : null; if (id) bark(e.being, id); });
+  setupContent();
   bus.on('use_item', e => useItem(ctx.state, e.uid, e.src));
   bus.on('use_fav', e => useFav(ctx.state, e.ref, e.src));
   bus.on('read_book', e => bookScreen(e.id));

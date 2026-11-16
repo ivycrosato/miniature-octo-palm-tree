@@ -157,6 +157,7 @@ const BUILD = {
     H.thing('container', -18, -5.5, .8, { cid: 'pw_barrel', loot: 'house', owner: 'gyda', name: 'thing.barrel' });
     H.thing('plant', -40, 22, .3, { ing: 'frostberry', regrow: 2 }); H.thing('plant', -46, 14, .3, { ing: 'frostberry', regrow: 2 }); H.thing('plant', -12, 44, .3, { ing: 'frostberry', regrow: 2 });
     H.thing('plant', 30, 30, .3, { ing: 'pine_resin', regrow: 2 });
+    for (const [dx, dy] of [[36, 34], [44, 26], [30, 44]]) H.thing('plant', dx, dy, .3, { ing: 'snow_lily', regrow: 2 });
   },
   pinewater_mill(H) {
     const k = H.kit, [x, y] = H.at(0, 0), z = H.z(0, 0);

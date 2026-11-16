@@ -27,7 +27,7 @@ export function spawn(defId, x, y, o = {}) {
   const hpK = D.team === 'follower' || D.team === 'guard' || D.team === 'town' ? 1 : tune.get('enemy_health');
   let a, rig = null;
   if (D.body === 'rig') {
-    const L = Object.assign({}, LOOKS[o.look || D.look] || {}); if (o.lookOver) Object.assign(L, o.lookOver);
+    const L = Object.assign({}, typeof o.look === 'object' ? o.look : LOOKS[o.look || D.look] || {}); if (o.lookOver) { Object.assign(L, o.lookOver); if (o.lookOver.colors) L.colors = Object.assign({}, (typeof o.look === 'object' ? o.look : LOOKS[o.look || D.look] || {}).colors, o.lookOver.colors); }
     rig = makeRig({}, Object.assign({ size: D.size || 1.05, build: L.build, outfit: L.outfit, armor: L.armor, cape: L.cape, hat: L.hat, eyeGlow: L.eyeGlow, hunch: L.hunch, hood: L.hood, colors: L.colors }, o.rigOpts || {}));
     if (L.hair) rig.o.hair = L.hair;
     rig.o.weapon = D.weapon ? RIG_WEAPON[D.weapon] || 'sword' : null;
@@ -40,7 +40,7 @@ export function spawn(defId, x, y, o = {}) {
   a.facing = o.facing || 0;
   const b = makeBeing({ kind: D.team === 'town' || D.team === 'guard' || D.team === 'follower' ? 'npc' : 'enemy', team: o.team || D.team, a, r: D.r * (D.size || 1), h: D.h * (D.size || 1), hp: Math.round(D.hp * hpK), maxHp: Math.round(D.hp * hpK),
     armor: D.armor, level: o.level || D.level, def: D, id: o.id, essential: !!(o.essential ?? D.essential), name: o.name || 'enemy.' + defId, rig, world: o.world || ctx.worldId, blockPct: .35, guard: 30, seed: Math.random() * 10 });
-  b.ai = { kind: D.ai || 'melee', state: o.sleep ? 'sleep' : 'idle', t: Math.random() * 2, home: o.home || { x, y }, patrol: o.patrol || null, pi: 0, cool: 1 + Math.random(), atk: null, wake: o.wake || 'noise', sched: o.sched || null };
+  b.ai = { kind: o.ai || D.ai || 'melee', state: o.sleep ? 'sleep' : 'idle', t: Math.random() * 2, home: o.home || { x, y }, patrol: o.patrol || null, pi: 0, cool: 1 + Math.random(), atk: null, wake: o.wake || 'noise', sched: o.sched || null };
   if (D.boss) b.boss = true;
   if (o.onDie) b.onDie = o.onDie;
   b.lootTable = o.loot !== undefined ? o.loot : D.loot;

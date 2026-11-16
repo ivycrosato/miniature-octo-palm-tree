@@ -84,6 +84,6 @@ export function header(s, title, tabs, cur, onTab) {
 /** a modal question: title, text, choices [[line id, fn]] (keys and clicks pick) */
 export function ask(title, text, choices, o = {}) {
   return open({ id: 'ask', cls: 'dim', input: o.input, build(s) { const m = el('div', 'modal panel', s.root); el('h2', '', m, title); if (text) el('p', '', m, text); s.list = el('div', 'list', m); },
-    items(s) { return choices.map(([line, fn]) => ({ el: row(s.list, T(line)), onPick: () => { close(s); fn(); } })); },
+    items(s) { return choices.map(([line, fn]) => ({ el: row(s.list, Array.isArray(line) ? T(line[0], line[1]) : T(line)), onPick: () => { close(s); fn(); } })); },
     actions: [['confirm', 'ui.select', s => s.pick()], ['cancel', 'ui.back', s => s.back()]], onBack: o.onBack ? s => { close(s); o.onBack(); } : undefined });
 }
