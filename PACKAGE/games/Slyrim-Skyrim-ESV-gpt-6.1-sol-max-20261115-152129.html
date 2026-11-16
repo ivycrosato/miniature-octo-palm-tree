@@ -28935,7 +28935,7 @@ function setupNotify() {
   bus.on("level_due", (e) => {
     const h = hud();
     if (h)
-      h.banner(T("note.level_up"), T("note.level_up_how", { key: "" }));
+      h.banner(T("note.level_up"), T("note.level_up_how"));
     ctx.audio && ctx.audio.sting("level");
   });
   bus.on("discover", (e) => {
@@ -30095,6 +30095,10 @@ function drawMap(s, V, st) {
     g.lineTo(f * 0.45, f * 0.5);
     g.lineTo(-f * 0.45, f * 0.5);
     g.closePath();
+    g.lineJoin = "round";
+    g.lineWidth = Math.max(3, f * 0.22);
+    g.strokeStyle = "#0b1220";
+    g.stroke();
     g.fill();
     g.restore();
   }

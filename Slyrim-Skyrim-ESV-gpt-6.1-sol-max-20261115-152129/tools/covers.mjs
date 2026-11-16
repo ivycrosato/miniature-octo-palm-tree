@@ -10,7 +10,7 @@ const DEV = join(dirname(fileURLToPath(import.meta.url)), '..'), ROOT = join(DEV
 const FILE = 'Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129.html', SLUG = 'slyrim-skyrim-esv-gpt-6-1-sol-max-20261115-152129';
 const OUTDIR = join(ROOT, 'PACKAGE/covers', SLUG);
 const wait = (page, fn, arg, ms = 120000) => page.waitForFunction(fn, arg, { timeout: ms, polling: 200 });
-const quiet = page => page.evaluate(() => { for (const e of document.querySelectorAll('.sly.hud .msgs, .sly.hud .banner, .sly.hud .tut, .sly.hud .sub, .sly.hud .quest, .sly.hud .enemy, .sly.hud .prompt, .sly.hud .dev, .esh-toast')) e.style.display = 'none'; });
+const quiet = page => page.evaluate(() => { if (document.getElementById('cover-quiet')) return; const st = document.createElement('style'); st.id = 'cover-quiet'; st.textContent = '.sly.hud .msgs, .sly.hud .banner, .sly.hud .tut, .sly.hud .sub, .sly.hud .quest, .sly.hud .enemy, .sly.hud .prompt, .sly.hud .dev, .esh-toast { display: none !important }'; document.head.appendChild(st); });   // (a style sheet: the HUD sets its pieces' display each frame)
 
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 mkdirSync(OUTDIR, { recursive: true });
