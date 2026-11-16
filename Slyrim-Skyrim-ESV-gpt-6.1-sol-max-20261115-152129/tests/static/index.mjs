@@ -14,7 +14,9 @@ const HEAD = [
   '<meta name="theme-color" content="#1b2a40">', '<link rel="icon" href="data:image/svg+xml;base64,', '<meta name="hub:catalogue" content="1">',
   '<meta name="hub:type" content="Game">', '<meta name="hub:genre" content="RPG">', '<meta name="hub:tags" content="action-rpg, open world, fantasy, stealth, co-op">',
   '<meta name="hub:controls" content="WASD to move; mouse to look; click to attack; right click to block; E to use; Z to shout; C to sneak; Tab for menu; arrows for player 2; gamepad to play">',
-  '<meta name="hub:model" content="GPT-6.1 Sol">', '<meta name="hub:effort" content="max">', '<meta name="hub:harness" content="Codex">', '<meta name="hub:session" content="1">',
+  // (model, effort and harness: the ones that really built this game, as catalogue.md defines them; the owner chose these
+  // over Appendix D's values, which were written for another run. The exact model version comes from the run's record.)
+  '<meta name="hub:model" content="Claude">', '<meta name="hub:effort" content="xhigh">', '<meta name="hub:harness" content="Claude Code">', '<meta name="hub:session" content="1">',
   '<meta name="hub:source" content="The Elder Scrolls V: Skyrim">', '<meta name="hub:players" content="1-4">',
   '<meta name="hub:multiplayer" content="parallel 1-4, ghost 1-4, shared-world co-op 2-4, shared-world versus 2-4, same-screen co-op 2-4, same-screen versus 2-4, split-screen co-op 2-4">',
   '<meta name="hub:session-players" content="1-4">', '<meta name="hub:session-mode" content="ghost">', '<meta name="hub:session-goal" content="Kill the North Watch dragon. The fastest time wins.">',

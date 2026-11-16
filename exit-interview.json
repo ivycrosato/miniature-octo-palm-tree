@@ -13,7 +13,7 @@
     "testing": "Headless Chromium through Playwright 1.63.0 (WebGL 2 on SwiftShader); Node unit tests; a scripted full playthrough with an autopilot; the 52in1 session harness in every online mode; the catalogue checker; emulated pads and phone profiles; OfflineAudioContext checks; screenshots and filmstrips at 1920x1080 looked at by eye",
     "research": "The plan's research (the my-3D2dge 0.101.0 handoff, the 52in1 session, catalogue and languages pages, a single-file packaging test), plus reading the engine source and API for every system used",
     "environment": "Claude Code (cloud session, headless); Linux",
-    "model": "unknown",
+    "model": "Anthropic, Claude, reasoning effort xhigh",
     "usage": "added on import"
   },
   "testingFeedback": [
