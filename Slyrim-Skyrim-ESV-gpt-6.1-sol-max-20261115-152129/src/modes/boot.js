@@ -15,7 +15,7 @@ export function boot(game, info) {
   const steps = info ? scenes.roundSteps(info) : scenes.campaignSteps();
   const q = new URLSearchParams(location.search); ctx.test = q.get('test') === '1';
   if (game.booted === undefined) void 0;
-  game.start({ scenes: scenes.all, scene: info ? 'round' : 'title', boot: { checks: false, messages: Array.from({ length: TIPS }, (_, i) => T('tip.' + (i + 1))), accent: '#8fd8ff', steps } });
+  game.start({ scenes: scenes.all, scene: info ? 'round' : 'title', boot: { checks: false, title: T('game.title') + ' — ' + T('game.tagline'), messages: Array.from({ length: TIPS }, (_, i) => T('tip.' + (i + 1))), accent: '#8fd8ff', steps } });
   if (!info && game.booted) game.booted.then(() => { ctx.ready = true; if (ctx.test && q.get('start') === 'play') ctx.newGame({ bg: q.get('bg') || 'warrior' }); });
   else if (info && game.booted) game.booted.then(() => { ctx.ready = true; });
 }

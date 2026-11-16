@@ -46,7 +46,8 @@
   "join.kit": "Kit",
   "attract.demo": "Demo",
   "attract.press_button": "Press any button",
-  "attract.press_key": "Press any key"
+  "attract.press_key": "Press any key",
+  "enemy.person": "Person"
  },
  "names": [
   "Dragon Hunt"

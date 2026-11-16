@@ -69,6 +69,7 @@
   "engine.view.side": "Side",
   "engine.view.overhead": "Overhead",
   "engine.key.numpad": "Num {key}",
+  "engine.boot.warming": "Warming up",
   "engine.need.title": "Controller or keyboard required",
   "engine.need.text": "This game plays with a controller or a keyboard. Connect one, then press a button.",
   "engine.need.settings": "Settings",
@@ -1718,7 +1719,8 @@
   "join.kit": "Kit",
   "attract.demo": "Demo",
   "attract.press_button": "Press any button",
-  "attract.press_key": "Press any key"
+  "attract.press_key": "Press any key",
+  "enemy.person": "Person"
  },
  "notes": {
   "round.progress": "Shown on the 52in1 scoreboard during a round.",

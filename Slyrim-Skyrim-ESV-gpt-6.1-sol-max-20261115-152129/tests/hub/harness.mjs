@@ -28,8 +28,10 @@ export async function runHarness({ mode, how, players = 2, scenario, query = '',
     const t = await page.title();
     if (!/harness|hub|52in1|AI Hub/i.test(t)) throw new Error('not the harness: ' + t);
     // the game's own title, from a frame, before trusting a result
+    // each copy's boot time to ready(), read while the round runs (a frame may be gone by the end)
+    await page.evaluate(() => { window.__readyTimes = {}; window.__readyPoll = setInterval(() => { document.querySelectorAll('iframe').forEach((f, i) => { try { const v = f.contentWindow.__slyrimReadyAt; if (v && /Slyrim/.test(f.contentDocument.title)) window.__readyTimes[i + ':' + f.src] = v; } catch (e) { /* not yet */ } }); }, 100); });
     await page.waitForFunction(() => document.body.dataset.complete === 'true', null, { timeout, polling: 250 });
-    const r = await page.evaluate(() => ({ pass: window.__hubCheck.pass, checks: window.__hubCheck.checks, titles: [...document.querySelectorAll('iframe')].map(f => { try { return f.contentDocument.title; } catch (e) { return '?'; } }), ready: [...document.querySelectorAll('iframe')].map(f => { try { return f.contentWindow.__slyrimReadyAt || null; } catch (e) { return null; } }) }));
+    const r = await page.evaluate(() => ({ pass: window.__hubCheck.pass, checks: window.__hubCheck.checks, ready: Object.values(window.__readyTimes || {}), titles: [...document.querySelectorAll('iframe')].map(f => { try { return f.contentDocument.title; } catch (e) { return '?'; } }) }));
     if (!r.titles.length || !r.titles.every(x => /Slyrim/.test(x) || x === '')) throw new Error('a frame is not Slyrim: ' + r.titles.join(', '));
     return Object.assign(r, { ms: Date.now() - t0 });
   } finally { await ctx.close(); }

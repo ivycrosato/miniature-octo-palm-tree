@@ -1,5 +1,5 @@
 // The instruments and the sound recipes (plan Part K): plain Web Audio, made in code, usable on the live context and on
-// an OfflineAudioContext (the tests render with the same code). No files, no <audio>, no data URIs of sound.
+// an OfflineAudioContext (the tests render with the same code). No files, no audio elements, no data URIs of sound.
 const NOISE = new WeakMap(), PLUCK = new WeakMap();
 /** one second of white noise for this context */
 export function noiseBuf(ac) { let b = NOISE.get(ac); if (b) return b; b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = b.getChannelData(0); let s = 12345; for (let i = 0; i < d.length; i++) { s = (s * 1103515245 + 12345) >>> 0; d[i] = s / 2147483648 - 1; } NOISE.set(ac, b); return b; }

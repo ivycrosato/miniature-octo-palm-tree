@@ -1788,6 +1788,7 @@ for (const k in E.VIEWS) ENGINE_LINES['engine.view.' + k] = E.VIEWS[k]._label;  
 Object.assign(ENGINE_LINES, {
   'engine.key.numpad': 'Num {key}',
   // the standard menu (E.Shell's screens), its notices and the corner's button
+  'engine.boot.warming': 'Warming up',   // (PATCH 10)
   'engine.need.title': 'Controller or keyboard required', 'engine.need.text': 'This game plays with a controller or a keyboard. Connect one, then press a button.', 'engine.need.settings': 'Settings',
   'engine.shell.paused': 'Paused', 'engine.shell.paused_by': 'Paused by P{player}', 'engine.shell.resume': 'Resume', 'engine.shell.settings': 'Settings',
   'engine.shell.controls': 'Controls', 'engine.shell.help': 'Help', 'engine.shell.map': 'Map', 'engine.shell.back': 'Back', 'engine.shell.close': 'Close',
@@ -3172,7 +3173,7 @@ class Game {
         ok(); if (live) { requestAnimationFrame(next); return; }   // one step a frame: the screen shows each
       }
       if (live && o.min && now() - t0 < o.min * 1000) { requestAnimationFrame(next); return; }
-      if (live) BOOT._step(n + 1, n + 1, 'Warming up');
+      if (live) BOOT._step(n + 1, n + 1, E.t('engine.boot.warming'));   // (PATCH 10, Slyrim: a line, not English)
       this._booting = false; const bg = this._bootGo; this._bootGo = null;
       if (bg && h.scenes && h.scenes[bg.name]) Object.assign(h, { scene: bg.name, data: bg.data }); else if (bg) warn('go:' + bg.name, 'game.go("' + bg.name + '") in a boot step: no such scene. Scenes: ' + Object.keys(h.scenes || {}).join(', '));
       this.start(h); res(this);

@@ -7,7 +7,11 @@ import { get, all } from '../core/registry.js';
 import { used } from '../core/text.js';
 import { posOf } from '../combat/core.js';
 import { addItem, findItem, equip, count } from '../rpg/inventory.js';
-import { setSkill } from '../rpg/character.js';
+import { setSkill, charXp, levelNeed, perkStatus, takePerk, allPerks } from '../rpg/character.js';
+import { openLevelUp } from '../ui/hub.js';
+import { stationScreen } from '../ui/stations.js';
+import { openDev } from './devtools.js';
+import { makeDragon } from '../actors/dragon.js';
 import { spawn } from '../actors/ai.js';
 import { PLACE, U } from '../world/hrimdal.js';
 import { things } from '../world/interact.js';
@@ -22,6 +26,18 @@ export function setupTestApi() {
   command('autoplay', (on = true, o = {}) => autoplay(on, o));
   command('face', (x, y) => { const P = ctx.player; P.yaw = Math.atan2(y - P.a.y, x - P.a.x); P.a.facing = P.yaw; });
   setupAutopilot();
+  command('steal', (value = 20) => bus.emit('steal', { id: 'silver_cup', n: 1, value, owner: 'town' }));
+  command('levelup', () => { const st = ctx.state; charXp(st, levelNeed(st.level) - st.xp + 1); const s = openLevelUp(); if (s) s.pick(); return st.level; });
+  command('perk', () => { const st = ctx.state; const p = allPerks().find(x => perkStatus(st, x.id) === 'ok'); return p ? takePerk(st, p.id) : false; });
+  command('dev', () => openDev());
+  command('dragon', (kind = 'red', d = 30) => { const P = ctx.player, x = P.a.x + Math.cos(P.yaw) * d * M, y = P.a.y + Math.sin(P.yaw) * d * M; const D = makeDragon(kind, x, y, { world: ctx.worldId, cx: P.a.x, cy: P.a.y, id: 'test_dragon', z: P.a.z + 14 * M }); D.st2 = 'hover'; return D; });
+  /** a station's screen, worked through its rows: the forge makes an item; the alchemy table mixes ingredients */
+  command('craft', (station, what) => {
+    const s = stationScreen(station); if (!s) return false;
+    if (station === 'alchemy') { for (const id of what) { const k = s.rows.findIndex(r => r.it && r.it.id === id && !r.el.classList.contains('fav')); if (k >= 0) { s.i = k; s.pick(); } } const a = s.spec.actions.find(x => x[0] === 'm_fav'); if (a) a[2](s); return true; }
+    for (let tab = 0; tab < 6; tab++) { const k = s.rows.findIndex(r => r.r && r.r.makes[0] === what && !r.off); if (k >= 0) { s.i = k; s.pick(); return true; } const a = s.spec.actions.find(x => x[0] === 'tab_next'); if (a) a[2](s); }
+    return false;
+  });
   command('give', (id, n = 1) => { if (id === 'gold') ctx.state.gold += n; else addItem(ctx.state, id, n); });
   command('equip', id => { const it = findItem(ctx.state, id); if (it) equip(ctx.state, it.uid); if (ctx.player) ctx.player.refreshGear(); });
   command('setSkill', (k, v) => setSkill(ctx.state, k, v));
