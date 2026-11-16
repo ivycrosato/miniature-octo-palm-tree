@@ -1,0 +1,14 @@
+{
+  "name": "slyrim-dev",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Slyrim: dev files, build and tests",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node tests/run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

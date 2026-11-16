@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>@@SESSION@@</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slyrim — A northern open-world RPG</title>
+<meta name="description" content="Explore a cold northern valley in first or third person. Fight, sneak, steal and shout to kill the dragons that came back.">
+<meta name="theme-color" content="#1b2a40">
+<link rel="icon" href="data:image/svg+xml;base64,@@ICON@@">
+<meta name="hub:catalogue" content="1">
+<meta name="hub:type" content="Game">
+<meta name="hub:genre" content="RPG">
+<meta name="hub:tags" content="action-rpg, open world, fantasy, stealth, co-op">
+<meta name="hub:controls" content="WASD to move; mouse to look; click to attack; right click to block; E to use; Z to shout; C to sneak; Tab for menu; arrows for player 2; gamepad to play">
+<meta name="hub:model" content="GPT-6.1 Sol">
+<meta name="hub:effort" content="max">
+<meta name="hub:harness" content="Codex">
+<meta name="hub:session" content="1">
+<meta name="hub:source" content="The Elder Scrolls V: Skyrim">
+<meta name="hub:players" content="1-4">
+<meta name="hub:multiplayer" content="parallel 1-4, ghost 1-4, shared-world co-op 2-4, shared-world versus 2-4, same-screen co-op 2-4, same-screen versus 2-4, split-screen co-op 2-4">
+<meta name="hub:session-players" content="1-4">
+<meta name="hub:session-mode" content="ghost">
+<meta name="hub:session-goal" content="Kill the North Watch dragon. The fastest time wins.">
+<meta name="hub:session-howto" content="WASD move; mouse look; click attack; right click block; Z shout; E use">
+<meta name="hub:session-minutes" content="6">
+<meta name="hub:session-goal-co-op" content="Kill the North Watch dragon together before time ends.">
+<meta name="hub:session-goal-versus" content="Get the most glory. The killing blow gives 500 glory.">
+<script type="application/json" id="game-lines">@@LINES@@</script>
+<script>window.__slyrimHub = (window.AIHub && AIHub.active) ? AIHub.connect({ mode: ['parallel', 'ghost', 'shared-world'], seats: [1, 4] }) : null;</script>
+<script type="importmap">{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.webgpu.min.js",
+  "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.webgpu.min.js",
+  "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.tsl.min.js",
+  "@dimforge/rapier3d-simd-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-simd-compat@0.19.3/rapier.mjs"
+} }</script>
+<style>html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1220 }</style>
+</head>
+<body>
+<div id="stage" style="position:relative;width:100%;height:100%;overflow:hidden">
+  <canvas id="view"></canvas><canvas id="screen" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+</div>
+@@BODY@@
+<script>@@ENGINE2D@@</script>
+<script type="module">@@ENGINE3D@@</script>
+<script type="module">@@GAME@@</script>
+</body>
+</html>
