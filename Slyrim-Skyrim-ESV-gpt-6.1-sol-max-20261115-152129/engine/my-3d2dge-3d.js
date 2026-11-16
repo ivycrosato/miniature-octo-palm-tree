@@ -2306,6 +2306,8 @@ class World3D {
      *  it), pen (the world's pen, in this scene: engine units round the eye, x ahead, y right, z up), on }; lit by the
      *  world's sun and sky as the world's camera sees them */
     if (o.overlay) this._makeOverlay(o.overlay);
+    if (o.weather) this._makeWeather(o.weather === true ? {} : o.weather);   // (PATCH 4)
+    this.waters = [];   // (PATCH 6: world.water(o) surfaces)
     /** onDraw(world, r): called as each frame starts drawing, before the camera is placed: the game's own 3D drawing
      *  (world.pen, overlay.pen, glows; a last touch to camera.pose) for every frame, whichever scene draws the world */
     this.onDraw = o.onDraw || null;
@@ -2911,6 +2913,84 @@ Object.assign(World3D.prototype, {
     if (o.color) { this._fog.color = o.color; this.scene.fog.color.set(o.color); } if (o.near !== undefined) this._fog.near = o.near; if (o.far !== undefined) this._fog.far = o.far;
     return this;
   },
+  /* (PATCH 4, Slyrim) 3D weather: snow or rain falling round each camera in world space, blown by the wind, cosmetic. One
+   *  mesh of small crossed flakes made with the world (new E.World3D(game, { weather: true | { count } })); the vertex
+   *  stage moves each flake by its seed and the clock, wrapped in a box round the camera, so nothing is updated per flake */
+  _makeWeather(o) {
+    const { attribute, uniform, vec3, float, fract, sin, positionLocal, select, mix } = TSL, N = o.count || 2400, BOX = o.box || 36;
+    const P = new Float32Array(N * 18 * 3), S = new Float32Array(N * 18 * 4), r = E.rng(7);
+    for (let i = 0; i < N; i++) {
+      const sx = r(), sy = r(), sz = r(), k = i / N;
+      // three crossed quads per flake (two triangles each): along x, y and z
+      const quads = [[[1, 0, 0], [0, 1, 0]], [[0, 1, 0], [0, 0, 1]], [[1, 0, 0], [0, 0, 1]]];
+      let v = i * 18;
+      for (const [a, b] of quads) for (const [u, w] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) {
+        P[v * 3] = (a[0] * u + b[0] * w) * .5; P[v * 3 + 1] = (a[1] * u + b[1] * w) * .5; P[v * 3 + 2] = (a[2] * u + b[2] * w) * .5;
+        S[v * 4] = sx; S[v * 4 + 1] = sy; S[v * 4 + 2] = sz; S[v * 4 + 3] = k; v++;
+      }
+    }
+    const geo = this._own(new THREE.BufferGeometry()); geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); geo.setAttribute('seed', new THREE.BufferAttribute(S, 4));
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7);
+    const uT = uniform(0), uCam = uniform(new THREE.Vector3()), uAmt = uniform(0), uWind = uniform(new THREE.Vector2(0, 0)), uFall = uniform(1.4), uSize = uniform(.07), uLen = uniform(1), uCol = uniform(new THREE.Color('#f4f8ff'));
+    const seed = attribute('seed', 'vec4'), B = float(BOX);
+    const drift = vec3(uWind.x.mul(uT).add(sin(uT.mul(.7).add(seed.w.mul(40))).mul(.6)), uFall.mul(uT).negate(), uWind.y.mul(uT).add(sin(uT.mul(.9).add(seed.x.mul(30))).mul(.6)));
+    const local = vec3(seed.x, seed.z, seed.y).mul(B).add(drift).sub(uCam);
+    const wrapped = fract(local.div(B)).mul(B).sub(B.mul(.5)).add(uCam);
+    const shown = select(seed.w.lessThan(uAmt), float(1), float(0));
+    const shape = vec3(positionLocal.x.mul(uSize), positionLocal.y.mul(uSize).mul(uLen), positionLocal.z.mul(uSize));
+    const mat = this._obj(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+    mat.positionNode = wrapped.add(shape.mul(shown));
+    mat.colorNode = uCol; mat.opacityNode = float(.85);
+    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.visible = false; mesh.renderOrder = 3; this.scene.add(mesh);
+    this._wx = { mesh, uT, uCam, uAmt, uWind, uFall, uSize, uLen, uCol, on: false };
+  },
+  /** (PATCH 4) the weather: { kind: 'snow' | 'rain' | null, amount: 0..1, wind: [x, y] (metres a second, engine axes) } */
+  setWeather(o = {}) {
+    const W = this._wx; if (!W) return this;
+    W.on = !!o.kind && (o.amount ?? 1) > 0; W.uAmt.value = o.kind ? Math.max(0, Math.min(1, o.amount ?? 1)) : 0;
+    const w = o.wind || [0, 0]; W.uWind.value.set(w[0], w[1]);
+    if (o.kind === 'rain') { W.uFall.value = 9; W.uSize.value = .025; W.uLen.value = 14; W.uCol.value.set('#b8c8d8'); }
+    else { W.uFall.value = o.kind === 'storm' ? 3.2 : 1.3; W.uSize.value = .07; W.uLen.value = 1; W.uCol.value.set('#f4f8ff'); }
+    return this;
+  },
+  /** (PATCH 6, Slyrim) a flat water or ice surface, made with the world: { kind: 'water' | 'ice', z (engine units), and its
+   *  shape: poly [[x, y], ...] (engine units) or a ribbon { pts: [[x, y, z], ...], w } along a river (its own height per
+   *  point) }. Water: a dark blue-green that ripples with the clock, see-through at its edge. Ice: pale blue with a
+   *  pattern of cracks and a gloss. Returns { mesh, kind } */
+  water(o = {}) {
+    const { positionWorld, vec3, float, sin, abs, min, mix, smoothstep, uniform, fract, floor, dot, max, pow, normalView, positionView } = TSL;
+    if (!this._waterT) this._waterT = uniform(0);
+    const t = this._waterT, geo = new THREE.BufferGeometry(), P = [];
+    if (o.ribbon) {
+      const pts = o.ribbon.pts, hw = o.ribbon.w / 2;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * hw, ny = dx / l * hw;
+        const A = [a[0] + nx, a[1] + ny, a[2]], B = [a[0] - nx, a[1] - ny, a[2]], C = [b[0] - nx, b[1] - ny, b[2]], D = [b[0] + nx, b[1] + ny, b[2]];
+        for (const q of [A, B, C, A, C, D]) P.push(q[0] / U, q[2] / U, q[1] / U);
+      }
+    } else {
+      const poly = o.poly, z = (o.z || 0) / U; let cx = 0, cy = 0; for (const q of poly) { cx += q[0]; cy += q[1]; } cx /= poly.length; cy /= poly.length;
+      for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; P.push(cx / U, z, cy / U, a[0] / U, z, a[1] / U, b[0] / U, z, b[1] / U); }
+    }
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.computeVertexNormals(); this._own(geo);
+    const p = positionWorld.xz;
+    let mat;
+    if (o.kind === 'ice') {
+      mat = this._obj(new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: .22, metalness: 0 }));
+      const cell = q => { const c = sin(q.x.mul(.9).add(sin(q.y.mul(.37)).mul(2.3))).mul(sin(q.y.mul(.8).add(sin(q.x.mul(.41)).mul(2.1)))); return abs(c); };
+      const crack = smoothstep(float(.0), float(.06), cell(p.mul(1.3))).mul(smoothstep(float(0), float(.05), cell(p.mul(.43).add(7))));
+      const tone = sin(p.x.mul(.13)).mul(sin(p.y.mul(.11))).mul(.06);
+      mat.colorNode = mix(vec3(.36, .5, .58), vec3(.72, .84, .9).add(tone), crack);
+      mat.roughnessNode = mix(float(.6), float(.18), crack);
+    } else {
+      mat = this._obj(new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: .12, metalness: .1, transparent: true, depthWrite: false }));
+      const w = sin(p.x.mul(1.7).add(t.mul(1.9))).add(sin(p.y.mul(2.3).sub(t.mul(1.4)))).add(sin(p.x.add(p.y).mul(3.1).add(t.mul(2.6))).mul(.5));
+      mat.colorNode = mix(vec3(.05, .13, .17), vec3(.18, .32, .38), w.mul(.18).add(.5));
+      mat.opacityNode = float(.82);
+    }
+    const mesh = new THREE.Mesh(geo, mat); mesh.receiveShadow = true; mesh.renderOrder = o.kind === 'ice' ? 0 : 2; this.scene.add(mesh);
+    const h = { mesh, kind: o.kind || 'water' }; this.waters.push(h); return h;
+  },
   /* the overlay (a view model): its own scene and camera, lit by the world's sky and sun as the camera sees them */
   _makeOverlay(o) {
     const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(o.fov || 62, 1, o.near || .01, o.far || 40);
@@ -3050,6 +3130,8 @@ Object.assign(World3D.prototype, {
    *  sky's dome round the camera, the overlay's light and shape */
   _frameExtras(c3, rw) {
     const cp = c3.position;
+    if (this._wx) { const W = this._wx; W.uCam.value.copy(cp); W.uT.value = this.game.real || 0; W.mesh.visible = W.on && W.uAmt.value > 0; }   // (PATCH 4)
+    if (this._waterT) this._waterT.value = this.game.real || 0;   // (PATCH 6)
     if (this.terrain) this.terrain.drawStream(this, cp.x * U, cp.z * U, cp.y * U, this._warm ? TERRAIN_BUILDS : Infinity);
     if (this._skyDome) { this._skyDome.position.copy(cp); this._skyDome.scale.setScalar(this.camera.far / U * .92); if (this._sun) this._sunU.value.copy(this._sunDir).negate(); }
     if (this.overlay) { const oc = this.overlay.camera; oc.aspect = rw[0] / rw[1]; oc.updateProjectionMatrix(); this._lightOverlay(c3); }
