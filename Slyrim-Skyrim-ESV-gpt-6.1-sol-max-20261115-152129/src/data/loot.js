@@ -1,0 +1,25 @@
+// Loot tables (plan Part G.6): def('loot', id, [[item, chance, min, max], ...]); 'gold' is coins (scaled by the gold slider)
+import { def } from '../core/registry.js';
+const L = (id, e) => def('loot', id, { entries: e });
+L('road_common', [['gold', 1, 5, 25], ['bread', .4, 1, 2], ['apple', .4, 1, 3], ['potion_health', .25, 1, 1], ['iron_arrow', .3, 4, 10], ['lock_pick', .2, 1, 2], ['torch', .2, 1, 1]]);
+L('raider', [['gold', .9, 5, 30], ['iron_axe', .15, 1, 1], ['iron_sword', .1, 1, 1], ['lock_pick', .3, 1, 1], ['potion_health', .15, 1, 1], ['bread', .2, 1, 1]]);
+L('raider_archer', [['gold', .8, 5, 20], ['iron_arrow', 1, 4, 10], ['long_bow', .1, 1, 1]]);
+L('hrolf', [['gold', 1, 120, 120], ['steel_greatsword', 1, 1, 1], ['ashgrip_key', 1, 1, 1], ['potion_health', .5, 1, 1]]);
+L('barrow_common', [['gold', .7, 4, 20], ['grey_moss', .4, 1, 2], ['bronze_sword', .1, 1, 1], ['bronze_ingot', .15, 1, 1]]);
+L('barrow_archer', [['bronze_arrow', 1, 3, 8], ['gold', .5, 3, 12]]);
+L('barrow_boss', [['bronze_greatsword', 1, 1, 1], ['gold', 1, 80, 80], ['bronze_ingot', 1, 1, 2]]);
+L('mine', [['iron_ore', .6, 1, 3], ['coal', .4, 1, 2], ['salt_rock', .4, 1, 2], ['gold', .5, 5, 15], ['bog_cap', .3, 1, 2]]);
+L('house', [['bread', .5, 1, 2], ['apple', .5, 1, 3], ['cheese_wheel', .25, 1, 1], ['silver_cup', .3, 1, 1], ['gold', .5, 3, 15], ['potato', .4, 1, 2], ['cabbage', .4, 1, 2], ['salt', .4, 1, 2]]);
+L('stall', [['silver_cup', 1, 1, 2], ['gold_ring_plain', .5, 1, 1], ['apple', .6, 1, 3]]);
+L('merchant_chest', [['gold', 1, 50, 120], ['gold_ring_plain', .5, 1, 1], ['silver_cup', .6, 1, 2], ['potion_health', .4, 1, 2]]);
+L('dragon', [['dragon_bone', 1, 2, 2], ['dragon_scale', 1, 2, 2]]);
+L('giant', [['gold', 1, 300, 300], ['cheese_wheel', .6, 1, 2]]);
+L('wolf', [['wolf_pelt', 1, 1, 1], ['wolf_fang', .8, 1, 2]]);
+L('spider', [['spider_egg', .9, 1, 2]]);
+L('troll', [['troll_fat', 1, 1, 2]]);
+L('ox', [['ox_hide', 1, 1, 1]]);
+L('deer', [['deer_hide', 1, 1, 1], ['venison', 1, 1, 2]]);
+L('fox', [['fox_tail', 1, 1, 1]]);
+L('rabbit', [['rabbit_meat', 1, 1, 1]]);
+L('crab', [['crab_meat', 1, 1, 1]]);
+L('cache', [['gold', 1, 40, 90], ['potion_health', .8, 1, 2], ['potion_magicka', .5, 1, 1], ['steel_arrow', .6, 8, 16], ['lock_pick', .7, 2, 4], ['gold_ring_plain', .4, 1, 1]]);

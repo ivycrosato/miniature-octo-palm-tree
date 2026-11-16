@@ -8,7 +8,7 @@ export const INPUT = {
   jump: ['Space', 'Pad3'], interact: ['KeyE', 'Pad0'], ready: ['KeyR', 'Pad2'], view: ['KeyF', 'Pad11'], quick: ['KeyQ', 'Pad12'], heal: ['KeyH', 'Pad13'],
   fav1: ['Digit1', 'Pad14'], fav2: ['Digit2', 'Pad15'], fav3: ['Digit3'], fav4: ['Digit4'], fav5: ['Digit5'], fav6: ['Digit6'], fav7: ['Digit7'], fav8: ['Digit8'],
   hub: ['Tab', 'Pad1'], items: ['KeyI'], magic: ['KeyP'], skills: ['KeyK'], map: ['KeyM', 'Pad17'], journal: ['KeyJ'], wait: ['KeyT', 'Pad8'],
-  quicksave: ['F5'], quickload: ['F9'], walk: ['CapsLock'],
+  quicksave: ['F5'], quickload: ['F9'], walk: ['CapsLock'], zoom_in: ['WheelUp'], zoom_out: ['WheelDown'],
   // menus
   tab_prev: ['KeyQ', 'Pad4'], tab_next: ['KeyE', 'Pad5'], m_left: ['KeyG', 'Pad6'], m_drop: ['KeyR', 'Pad2'], m_fav: ['KeyF', 'Pad3'], m_right: ['Pad7']
 };

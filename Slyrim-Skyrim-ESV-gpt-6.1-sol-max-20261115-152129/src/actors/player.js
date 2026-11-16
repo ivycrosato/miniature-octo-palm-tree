@@ -32,7 +32,7 @@ export function makePlayer(world, at, o = {}) {
   being.resist = {}; being.player = true;
   const P = {
     a, being, rig, S, I, index: o.index || 0, cam: o.cam || world.camera, world,
-    yaw: at.facing || 0, pitch: -.12, view: o.firstOK === false ? 'third' : (S.view || 'third'), dist: 3.4 * M, camClr: 0, sneak: false, sheathed: false, walkMode: false,
+    yaw: at.facing || 0, pitch: -.12, view: o.firstOK === false ? 'third' : (S.view || 'third'), dist: 4 * M, camClr: 0, sneak: false, sheathed: o.sheathed !== false, walkMode: false,
     sinceSp: 9, sinceMp: 9, combatT: 0, peakZ: at.z ?? 0, wasGround: true, dead: false, deadT: 0, carrying: null,
     R: { mode: 'idle', t: 0, combo: null, power: false, draw: 0, charge: 0, held: 0 }, L: { mode: 'idle', t: 0, combo: null, charge: 0, held: 0 },
     shoutHeld: 0, shoutT: 0, aimZoom: 0, recoil: 0, fovK: 0, stepPh: 0, lastStep: 0, hint: null, focusT: null, interactHeld: 0, quietT: 0, executeT: 0,

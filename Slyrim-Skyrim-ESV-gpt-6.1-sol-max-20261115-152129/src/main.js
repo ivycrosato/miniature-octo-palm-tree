@@ -1,24 +1,35 @@
-import { E, W3, M } from './core/engine.js';
+// Slyrim: the entry (plan Part L.3, P.5). In a 52in1 session the page opens straight into the round with no title, menu
+// or prompt; otherwise it boots Hrimdal behind the engine's boot screen and shows the title.
+import { E, W3 } from './core/engine.js';
+import { ctx } from './core/ctx.js';
+import { bus } from './core/bus.js';
+import { tune } from './core/tune.js';
+import { T } from './core/text.js';
+import { INPUT, CONTROL_NAMES } from './core/input.js';
+import './data/items.js'; import './data/skills.js'; import './data/magic.js'; import './data/recipes.js';
+import { boot } from './modes/boot.js';
+
 const info = window.__slyrimHub ? await window.__slyrimHub : null;
-const game = new E.Game({ id: 'slyrim', canvas: 'screen', res: 'ps1', expand: true, bg: null, touch: 'never', input: W3.INPUT,
-  menu: { settings: [...W3.SETTINGS, { key: 'glyphs', value: 'playstation' }, { key: 'music', value: .1 }] } });
+ctx.session = info || null;
+if (info) tune.noStore = true; else tune.restore();
+const settings = [
+  ...W3.SETTINGS.filter(s => s.key !== 'look3d'),   // (characters are cards: the puppet look is not offered, Part E.7 change 7)
+  { key: 'glyphs', value: 'playstation' }, { key: 'music', value: .1 },
+  { key: 'difficulty', label: T('set.difficulty'), group: 'Game', value: 'normal', options: [['easy', T('set.difficulty.easy')], ['normal', T('set.difficulty.normal')], ['hard', T('set.difficulty.hard')], ['very_hard', T('set.difficulty.very_hard')]] },
+  { key: 'subtitles', label: T('set.subtitles'), group: 'Game', value: true },
+  { key: 'textsize', label: T('set.textsize'), group: 'Game', value: 'normal', options: [['small', T('set.textsize.small')], ['normal', T('set.textsize.normal')], ['large', T('set.textsize.large')]] },
+  { key: 'dmgnumbers', label: T('set.dmgnumbers'), group: 'Game', value: false },
+  { key: 'crosshair', label: T('set.crosshair'), group: 'Game', value: 'auto', options: [['auto', T('set.crosshair.auto')], ['always', T('set.crosshair.always')]] },
+  { key: 'aimassist', label: T('set.aimassist'), group: 'Controller', value: 'low', options: [['off', T('set.aimassist.off')], ['low', T('set.aimassist.low')], ['high', T('set.aimassist.high')]] },
+  { key: 'sprinthold', label: T('set.sprinthold'), group: 'Game', value: 'hold', options: [['hold', T('set.hold')], ['toggle', T('set.toggle')]] },
+  { key: 'lookmouse', label: T('set.lookmouse'), group: 'Controls', type: 'slider', min: .2, max: 3, step: .1, value: 1 },
+  { key: 'lookpad', label: T('set.lookpad'), group: 'Controller', type: 'slider', min: .2, max: 3, step: .1, value: 1 },
+  { key: 'fov', label: T('set.fov'), group: 'Display', type: 'slider', min: 55, max: 100, step: 1, value: 70 }
+];
+const game = new E.Game({ id: 'slyrim', canvas: 'screen', res: 'ps1', expand: true, bg: null, touch: 'never', input: INPUT,
+  menu: { settings, quit: info ? false : 'title', controls: Object.fromEntries(CONTROL_NAMES.map(a => [a, T('control.' + a)])),
+    items: () => ctx.pauseItems ? ctx.pauseItems() : [] } });
+ctx.game = game;
 window.__game = game;
-let world, hero, sent = false, lastP = 0;
-const height = (x, y) => (Math.sin(x / 700) * 40 + Math.cos(y / 900) * 30);
-const scene = {
-  enter() { hero = world.hero({ x: 5000, y: 5000, rig: new E.Humanoid({}) }); world.camera.follow(hero); world.camera.set('chase'); },
-  update(dt) {
-    const m = game.input.move({ dpad: false }), out = [0, 0]; world.camera.ground(m, out); hero.vx = out[0] * 70; hero.vy = out[1] * 70;
-    if (info && window.AIHub.time() > 0 && !sent) { const now = performance.now(); if (now - lastP > 1000) { lastP = now; window.AIHub.progress({ score: Math.round(window.AIHub.time() / 1000), label: 'x' }); } }
-    world.step(dt);
-  },
-  draw(r) { world.draw(r); }
-};
-if (info) {
-  window.AIHub.on('time-up', () => { if (!sent) { sent = true; if (info.mode === 'shared-world') { if (info.isHost) window.AIHub.finish({ standings: [info.players.map(p => p.id)], won: false }); } else window.AIHub.result({ score: 1 }); } });
-  window.AIHub.on('end', () => { game.input.clear(); game.stop(); });
-}
-game.start({ scenes: { round: scene }, scene: 'round', boot: { checks: false, messages: false, steps: [
-  ['3D', () => W3.init(game)],
-  ['world', () => { world = new W3(game, { terrain: { size: 16384, height, far: 3000 }, sky: { top: '#5a8ac8', horizon: '#cfe3f5' }, sun: { dir: [-.4, -.5, -.7] } }); world.prepare(); }],
-  ['ready', () => { if (info) window.AIHub.ready(); }]] } });
+bus.now = () => game.real;
+boot(game, info);

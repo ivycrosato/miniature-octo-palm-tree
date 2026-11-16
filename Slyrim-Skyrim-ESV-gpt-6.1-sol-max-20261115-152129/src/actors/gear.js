@@ -54,7 +54,7 @@ E.Humanoid.weapon('torch', { length: 8, rest: [.5, .2, .4], blade: false, draw(w
 function drawShield(g, Q, rig, front) {
   const sh = rig.state && rig.state.shield; if (!sh || !Q.handL) return;
   const nearer = Q.handL[2] >= (Q.shC ? Q.shC[2] : Q.handL[2]); if (nearer !== front) return;
-  const s = rig.state.shieldUp ? 1.15 : 1, R = Math.max(3, 4.6 * (rig._u || rig.o.size || 1) * s), c = tones(sh.color), x = Q.handL[0], y = Q.handL[1] - R * .2;
+  const arm = Q.shL ? Math.hypot(Q.handL[0] - Q.shL[0], Q.handL[1] - Q.shL[1]) : 6, s = rig.state.shieldUp ? 1.15 : 1, R = Math.max(3, Math.max(arm, 5) * .95 * s), c = tones(sh.color), x = Q.handL[0], y = Q.handL[1] - R * .2;
   px.disc(g, x, y, R, c.deep); px.disc(g, x, y, R - 1, c.base); px.disc(g, x - R * .2, y - R * .2, R * .45, c.lt);
   px.disc(g, x, y, Math.max(1, R * .28), sh.boss || '#c6d0dc'); if (sh.mark) { px.line(g, x - R * .5, y, x + R * .5, y, sh.mark); px.line(g, x, y - R * .5, x, y + R * .5, sh.mark); }
 }

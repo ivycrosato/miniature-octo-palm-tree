@@ -11,7 +11,7 @@ import { rng } from '../core/rng.js';
 export function makeHrimdal(game, o = {}) {
   const world = new W3(game, {
     terrain: { size: 32768, cell: 32, chunk: 32, height, color, far: o.far || (o.lean ? 5600 : 15000), physics: 1600, detail: o.lean ? 1.2 : 1.5,
-      rock: { colors: ['#6e6a72', '#5d5a64', '#7c7880', '#4a4752', '#6a6670', '#585460'], band: 38, slope: [.42, .62] }, speckle: .22, mottle: .3 },
+      rock: { colors: ['#6e6a72', '#5d5a64', '#7c7880', '#4a4752', '#6a6670', '#585460'], band: 38, slope: [.55, .78] }, speckle: .22, mottle: .3 },
     sky: { top: '#5a8ac8', horizon: '#cfe3f5', ground: '#9aa4ac', sun: '#fff1c8', haze: .2 },
     sun: { dir: [-.4, -.45, -.8], intensity: 2.4, area: o.lean ? 200 : 260, map: o.lean ? 1024 : 2048 },
     fog: { color: '#cfe3f5', near: 3000, far: 20000 }, ambient: ['#b8c8e0', '#6a6050', 3.2], gravity: 320,

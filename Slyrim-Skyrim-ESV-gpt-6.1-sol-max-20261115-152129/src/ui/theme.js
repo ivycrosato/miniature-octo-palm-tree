@@ -77,7 +77,7 @@ const CSS = `
 .sly .logo .name{font:700 4.4em ${SERIF};letter-spacing:.32em;background:linear-gradient(#ffffff,#cfe3f5 55%,#7fa6cf);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 .06em 0 #2f4766) drop-shadow(0 0 .08em #0b1220)}
 .sly .logo .tag{font:italic 1.05em ${SERIF};color:${THEME.muted};margin-top:.1em}
 .sly .logo img{width:3.6em;height:3.6em}
-.sly .version{position:absolute;left:5%;bottom:5%;font-size:.6em;color:${THEME.muted}}
+.sly .version{position:absolute;right:5%;bottom:5%;font-size:.6em;color:${THEME.muted}}
 .sly .modal{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:min(80%,22em);max-width:90%;padding:1.2em 1.6em}
 .sly .modal h2{margin:0 0 .5em;font:600 1.3em ${SERIF};font-variant:small-caps}
 .sly .scroll{overflow:hidden;position:relative}
