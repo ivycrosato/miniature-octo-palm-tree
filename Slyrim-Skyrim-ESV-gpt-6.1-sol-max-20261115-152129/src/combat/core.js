@@ -44,7 +44,7 @@ export function hostile(a, b) {
 /** may a shot or a swing from src touch b: the player's touches anyone but the follower; others touch whom they fight */
 export function canTouch(src, b) {
   if (!src || src === b || !b.alive) return false;
-  if (src.kind === 'player') return b.team !== 'follower' && (b.kind !== 'remote' || (ctx.mode && ctx.mode.versus));
+  if (src.kind === 'player') return b.team !== 'follower' && ((b.kind !== 'remote' && b.kind !== 'player') || !!(ctx.mode && ctx.mode.versus));
   if (src.kind === 'remote') return b.kind !== 'player' || (ctx.mode && ctx.mode.versus);
   return hostile(src, b);
 }

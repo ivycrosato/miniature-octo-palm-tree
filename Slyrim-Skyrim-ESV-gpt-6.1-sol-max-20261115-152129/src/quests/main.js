@@ -179,7 +179,7 @@ bus.on('new_game', () => { mq1 = { t: 0 }; phase = 1; ctx.weatherHold = null; })
 
 /** a new game: the caravan at Eastgate Pass */
 bus.on('campaign_start', e => {
-  if (!e.fresh || e.loaded) return; const st = S(); if (st.quests.mq1) return;
+  if (!e.fresh || e.loaded || ctx.attract) return; const st = S(); if (st.quests.mq1) return;
   flag('at_holger', OUTP('eastgate_pass', -9, 1)); Q.start('mq1'); bus.emit('banner', { id: 'place.eastgate_pass', sub: 'note.day_one' });
 });
 export function setupMain() {

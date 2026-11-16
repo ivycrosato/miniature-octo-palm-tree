@@ -31,6 +31,7 @@ import { talk, bark } from '../ui/dialogue.js';
 import { setupContent } from '../quests/index.js';
 import { openDev, setupDev } from '../dev/devtools.js';
 import { aboutScreen, helpScreen } from '../ui/about.js';
+import { challengesScreen, togetherScreen } from '../ui/together.js';
 
 export const QUICK = 6;
 const setups = [];
@@ -48,6 +49,8 @@ export function setupSystems() {
   titleActions.push(['menu.load', () => S.show('load'), () => !!S.latest()]);
   const fromPause = fn => () => { if (g.shell) g.shell.hide(); fn(); };
   pauseEntries.push(['menu.help', fromPause(helpScreen)], ['menu.about', fromPause(aboutScreen)], ['menu.dev', fromPause(openDev), () => !ctx.session]);
+  ctx.startAttract = () => g.go('attract');
+  titleActions.push(['menu.challenges', challengesScreen], ['menu.together', togetherScreen]);
   ctx.titleLate = () => { titleActions.push(['menu.settings', () => g.shell.show('settings')], ['menu.help', helpScreen], ['menu.about', aboutScreen]); };
   ctx.pauseItems = () => {
     if (ctx.session) return [];

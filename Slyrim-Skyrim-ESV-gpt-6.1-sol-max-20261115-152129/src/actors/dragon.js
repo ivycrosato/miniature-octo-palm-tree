@@ -45,6 +45,7 @@ function pickTarget(d) { let best = null, bd = 1e9; const q = d.a; for (const b 
 const ground = (x, y) => ctx.world.ground(x, y);
 /** a dragon's step: its state, its flight, its breath, its chains and hit spheres */
 export function stepDragon(d, dt) {
+  if (d.puppet) { stepPuppet(d, dt); return; }
   const a = d.a, K = d.K, S = d.S; d.t += dt; if (d.st2 === 'dead') { stepDead(d, dt); return; }
   d.flash = Math.max(0, d.flash - dt); d.sinceHit += dt;
   if (d.st.burn) { d.hp -= d.st.burn.dps * dt; if ((d.st.burn.t -= dt) <= 0) d.st.burn = null; if (d.hp <= 0) kill(d, d.lastHitBy, { kind: 'spell' }); }
@@ -119,6 +120,21 @@ export function stepDragon(d, dt) {
   if (d.breath) breathe(d, dt);
   updateChains(d, dt); updateSpheres(d);
 }
+/** a dragon another copy runs (a shared-world client): it follows the host's snapshot; its breath only shows */
+function stepPuppet(d, dt) {
+  const a = d.a, n = d.net; d.t += dt; d.flash = Math.max(0, d.flash - dt); if (!n) return;
+  if (!n.alive && d.alive) { d.alive = false; d.st2 = 'dead'; d.t = 0; d.breath = null; }
+  if (d.st2 === 'dead') { stepDead(d, dt); return; }
+  const dx = n.x - a.x, dy = n.y - a.y, dz = n.z - a.z;
+  if (Math.hypot(dx, dy, dz) > 30 * M) a.place(n.x, n.y, n.z); else { a.vx = dx * 6; a.vy = dy * 6; a.vz = dz * 6; }
+  d.yaw += clamp(angDiff(d.yaw, n.yaw), -3 * dt, 3 * dt); d.st2 = n.st; d.hp = n.hp * d.maxHp; d.element = n.el || d.element;
+  if (!d.target || ctx.tick % 30 === 0) d.target = pickTarget(d);
+  const air = d.st2 !== 'ground' && d.st2 !== 'sleep'; d.flap += dt * (d.st2 === 'hover' || d.st2 === 'land' || d.st2 === 'takeoff' ? 5.2 : air ? 2.4 : 0); d.wing = approach(d.wing, air ? 1 : -1, dt * 1.6);
+  d.breath = n.br ? { kind: d.st2 === 'strafe' ? 'line' : 'cone' } : null; if (d.breath) breathe(d, dt); else if (d.breathSfx) { d.breathSfx.stop(); d.breathSfx = null; }
+  d.jaw = approach(d.jaw, d.breath ? 1 : 0, dt * 6); d.pitch = approach(d.pitch, clamp(a.vz / (20 * M), -.4, .4), dt);
+  updateChains(d, dt); updateSpheres(d);
+}
+export const ST_CODES = ['sleep', 'arrive', 'circle', 'strafe', 'hover', 'land', 'ground', 'takeoff', 'dead'];
 function nextBreath(d) { d.bi = (d.bi + 1) % d.K.breath.length; d.element = d.K.breath[d.bi]; }
 function groundAttack(d, dt, tp, dist) {
   const A = d.atk, a = d.a; A.t += dt;
@@ -146,7 +162,7 @@ function breathe(d, dt) {
   d.breathDir = dir; const fire = d.element === 'fire', R = 25 * M * d.S, P = ctx.game.particles;
   for (let k = 0; k < 3; k++) { const s = Math.random(); P.add({ kind: fire ? 'fire' : 'glint', x: head[0] + dir[0] * 8, y: head[1] + dir[1] * 8, z: head[2] + dir[2] * 8, vx: dir[0] * 340 + (Math.random() - .5) * 60, vy: dir[1] * 340 + (Math.random() - .5) * 60, vz: dir[2] * 340 + (Math.random() - .5) * 60, life: .7 + s * .3, size: 3 + s * 3, color: fire ? '#ffb347' : '#cfefff' }); }
   if (ctx.audio && !d.breathSfx) { d.breathSfx = ctx.audio.loop(fire ? 'fire_breath' : 'frost_breath', d.a); }
-  for (const b of ctx.beings) {
+  if (!d.puppet) for (const b of ctx.beings) {
     if (!canTouch(d, b)) continue; const p = posOf(b), vx = p.x - head[0], vy = p.y - head[1], vz = p.z + 12 - head[2], along = vx * dir[0] + vy * dir[1] + vz * dir[2];
     if (along < 0 || along > R) continue; const off = Math.hypot(vx - dir[0] * along, vy - dir[1] * along, vz - dir[2] * along);
     if (off > 2 * M + along * .28) continue;

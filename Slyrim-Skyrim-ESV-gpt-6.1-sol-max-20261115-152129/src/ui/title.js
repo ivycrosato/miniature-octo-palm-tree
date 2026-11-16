@@ -8,6 +8,7 @@ import { applySky } from '../world/sky.js';
 import { setKitNight } from '../world/kit.js';
 import { PLACE, U } from '../world/hrimdal.js';
 import { onDraw } from '../modes/play.js';
+import { clearRound, H } from '../modes/hunt.js';
 
 const ICON = () => { const l = document.querySelector('link[rel=icon]'); return l ? l.href : ''; };
 export const titleActions = [];   // [lineId, fn, show()] added by the systems that own them (load, challenges, play together, about)
@@ -15,7 +16,7 @@ let idle = 0, scr = null;
 export function idleReset() { idle = 0; }
 export const title = {
   enter() {
-    const W = ctx.world = ctx.worlds.hrimdal; ctx.worldId = 'hrimdal'; W.onDraw = onDraw; ctx.players = []; ctx.player = null; ctx.mode = { kind: 'title' };
+    const W = ctx.world = ctx.worlds.hrimdal; ctx.worldId = 'hrimdal'; W.onDraw = onDraw; clearRound(); H.on = false; ctx.mode = { kind: 'title' };
     if (ctx.hud) ctx.hud.show(false);
     kit.closeAll(); idle = 0; this.t = 0; if (ctx.audio) ctx.audio.music('title');
     scr = kit.open({ id: 'title', cls: 'clear', build(s) {
@@ -34,7 +35,8 @@ export const title = {
   update(dt) {
     this.t += dt; const I = ctx.game.input;
     if (I.anyPressed() || I.mouse && I.mouse.t !== this._mt) { idle = 0; this._mt = I.mouse && I.mouse.t; } else idle += dt;
-    if (idle > 10 && ctx.startAttract && kit.stack.length <= 1 + (ctx.touchPanel ? 1 : 0)) { idle = 0; ctx.startAttract(); return; }
+    const top = kit.ui(), calm = !top || ['title', 'about', 'help', 'challenges', 'together'].includes(top.id) || (top.id === 'join' && ctx.game.players.length < 2);
+    if (idle > 10 && ctx.startAttract && calm && !(ctx.game.shell && ctx.game.shell._stack && ctx.game.shell._stack.length && !ctx.touchPanel)) { idle = 0; ctx.startAttract(); return; }
     kit.step(dt);
     const W = ctx.world, P = PLACE.pinewater, a = this.t * .035;
     const x = (P.x + 60 + Math.cos(a) * 120) * U, y = (P.y + 40 + Math.sin(a) * 90) * U, z = (W.ground(x, y) / U + 38) * U;

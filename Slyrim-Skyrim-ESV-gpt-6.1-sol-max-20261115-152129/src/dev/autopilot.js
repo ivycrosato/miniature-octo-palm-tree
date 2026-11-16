@@ -226,3 +226,4 @@ export function setupAutopilot() {
     try { tick(.12); } catch (e) { log('error ' + e.message); }
   });
 }
+export { tp, face, near, use, fight, castAt, shout, goPlace, sneak, thing, meleeReady };

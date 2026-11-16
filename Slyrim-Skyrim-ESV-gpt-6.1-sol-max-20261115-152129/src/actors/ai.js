@@ -123,7 +123,7 @@ function face(b, x, y, dt, k = 6) { const A = b.a; A.facing = E.approachAng(A.fa
 function pickTarget(b, P) {
   const q = posOf(b); let best = null, bd = 1e9;
   if (P && !P.dead && hostile(b, P.being) && b.aware >= 1) { const p = posOf(P.being); best = P.being; bd = Math.hypot(p.x - q.x, p.y - q.y) * .8; }
-  for (const o of ctx.beings) { if (o === b || !o.alive || o.kind === 'player' || !hostile(b, o) || o.world && o.world !== b.world) continue; const p = posOf(o), d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd && d < (b.def.aggro || 25) * M && (o.kind !== 'remote' || true)) { bd = d; best = o; } }
+  for (const o of ctx.beings) { if (o === b || !o.alive || (P && o === P.being) || !hostile(b, o) || o.world && o.world !== b.world) continue; const p = posOf(o), d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd && d < (b.def.aggro || 25) * M && (o.kind !== 'remote' || true)) { bd = d; best = o; } }
   return best;
 }
 function bark(b, id, t = 2.5) { if ((b.barkT || 0) > ctx.game.real) return; b.barkT = ctx.game.real + 6 + Math.random() * 4; bus.emit('bark', { being: b, id }); }

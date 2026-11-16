@@ -6,11 +6,12 @@ import { T } from '../core/text.js';
 import { makeHrimdal } from '../world/build.js';
 import { hunt } from './hunt.js';
 import { setupCore } from './systems.js';
+import { buildPlaces } from '../world/places.js';
 
 export function roundSteps(info) {
   return [
     [T('boot.engine'), () => W3.init(ctx.game).catch(e => { window.AIHub.fail(T('round.fail.webgl')); throw e; })],
-    [T('boot.round'), () => { ctx.worlds.round = makeHrimdal(ctx.game, { lean: true }); ctx.world = ctx.worlds.round; ctx.worldId = 'round'; setupCore(); hunt.build(info); }],
+    [T('boot.round'), () => { ctx.worlds.round = makeHrimdal(ctx.game, { lean: true }); ctx.world = ctx.worlds.round; ctx.worldId = 'round'; buildPlaces(ctx.world, ['north_watch']); setupCore(); hunt.build(info); }],
     [T('boot.ready'), () => { ctx.worlds.round.prepare(); window.__slyrimReadyAt = performance.now(); window.AIHub.ready(); }]
   ];
 }

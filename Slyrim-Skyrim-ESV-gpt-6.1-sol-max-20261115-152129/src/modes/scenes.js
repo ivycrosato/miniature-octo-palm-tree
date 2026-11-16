@@ -8,11 +8,13 @@ import { campaign } from './campaign.js';
 import { title } from '../ui/title.js';
 import { create } from '../ui/create.js';
 import { round, roundSteps } from './round.js';
+import { huntLocal } from './hunt.js';
+import { attract } from './attract.js';
 import { buildPlaces } from '../world/places.js';
 import { setupSystems } from './systems.js';
 
 export const scenes = {
-  all: { title, create, play: campaign, round },
+  all: { title, create, play: campaign, round, hunt: huntLocal, attract },
   campaignSteps() {
     return [
       [T('boot.engine'), () => W3.init(ctx.game)],
