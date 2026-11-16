@@ -41,6 +41,7 @@ export class Hud {
    *  or null), shout { name, charge (0..3), free, cd, cdMax }, corner (lines), dev, center, ghosts [{ x, y, name, color }] } */
   update(info, dt) {
     if (!this.visible) return;
+    const covered = !!(window.__slyrimCovered && window.__slyrimCovered()); this.root.style.visibility = covered ? 'hidden' : ''; if (covered) return;
     this.drawCompass(info);
     this.setText(this.quest, info.quest || '');
     if (info.enemy) { this.enemy.style.display = ''; this.enemy.className = 'enemy' + (info.enemy.boss ? ' boss' : ''); this.setText(this.enemyName, info.enemy.name); this.enemyFill.style.width = Math.max(0, info.enemy.hp / info.enemy.max * 100) + '%'; this.enemyFill.style.background = 'linear-gradient(#ff6a5a,#a82a24)'; }

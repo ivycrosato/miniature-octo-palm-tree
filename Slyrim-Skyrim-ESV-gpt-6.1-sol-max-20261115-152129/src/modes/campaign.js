@@ -8,17 +8,20 @@ import { makePlayer } from '../actors/player.js';
 import { Hud } from '../ui/hud.js';
 import * as kit from '../ui/kit.js';
 import { PLACE, U } from '../world/hrimdal.js';
+import { removeBeing } from '../combat/core.js';
+import { promptFor } from '../world/interact.js';
 
 export const campaign = {
   hooks: [],   // fn(ev) for 'enter', 'step', 'draw', 'leave': other systems (quests, schedules) hang on
   pausable: true,
   enter(data = {}) {
-    const W = ctx.world = ctx.worlds.hrimdal; ctx.worldId = 'hrimdal'; ctx.mode = ctx.mode && ctx.mode.kind === 'campaign' ? ctx.mode : { kind: 'campaign' };
-    W.onDraw = onDraw;
+    const W = ctx.worlds.hrimdal; if (!ctx.player) { ctx.world = W; ctx.worldId = 'hrimdal'; } ctx.mode = ctx.mode && ctx.mode.kind === 'campaign' ? ctx.mode : { kind: 'campaign' };
+    ctx.world.onDraw = onDraw;
     if (!ctx.player || data.fresh) {
       const S = ctx.state, at = S.pos ? { x: S.pos[0], y: S.pos[1], z: S.pos[2], facing: S.facing } : startPoint();
-      for (const b of ctx.beings.splice(0)) void b;
-      ctx.player = makePlayer(W, at, { state: S }); ctx.players = [ctx.player];
+      if (ctx.player) { removeBeing(ctx.player.being); ctx.player.world.remove(ctx.player.a); ctx.player = null; }
+      ctx.goWorld(S.where && S.where !== 'hrimdal' ? S.where : 'hrimdal', at, { instant: true, noSave: true, noFollower: true });
+      bus.emit('campaign_start', { fresh: !!data.fresh, loaded: !!data.loaded });
     }
     if (!ctx.hud) ctx.hud = new Hud(kit.hostEl());
     ctx.hud.show(true);
@@ -35,7 +38,7 @@ export const campaign = {
   draw(r) {
     drawWorld(r);
     const P = ctx.player; if (!P || !ctx.hud) return;
-    const info = hudInfo(P); for (const h of this.hooks) h('hud', info);
+    const info = hudInfo(P); const pr = promptFor(P.focus, P); if (pr && !P.carrying) info.prompt = Object.assign({ keys: [ctx.game.input.label('interact')] }, pr); for (const h of this.hooks) h('hud', info);
     ctx.hud.update(info, ctx.game.dt || 1 / 60);
   }
 };

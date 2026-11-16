@@ -10,6 +10,8 @@ export const el = (tag, cls, parent, text) => { const e = document.createElement
 /** the label of an action on the device used last: a key, a mouse button, a pad glyph (PlayStation by default) */
 export function keyOf(action, input) { const I = input || ctx.game.input; const l = I.label(action); return l || action; }
 export const stack = [];
+window.__slyrimCovered = () => stack.some(s => s.spec.cls !== 'clear' && !s.spec.hudOK);
+window.__slyrimScreens = () => stack.map(s => s.id);
 let host = null;
 export function ui() { return stack[stack.length - 1] || null; }
 export function anyOpen() { return stack.length > 0; }

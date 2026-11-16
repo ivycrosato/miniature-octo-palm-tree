@@ -17,6 +17,13 @@ import { setupProgress, stepSneakXp } from '../rpg/progress.js';
 import { setupNotify } from '../ui/notify.js';
 import { setupTestApi } from '../dev/testapi.js';
 import '../data/enemies.js'; import '../data/loot.js';
+import { setupDoors, goWorld } from '../world/doors.js';
+import { things } from '../world/interact.js';
+import { drawLights, torchLightAt } from '../world/lights.js';
+import { setupKinds } from '../world/kinds.js';
+import { hubKeys } from '../ui/hub.js';
+import { quickMenu, deathScreen, bookScreen, waitScreen } from '../ui/screens.js';
+import { useItem, useFav } from '../rpg/use.js';
 
 export const QUICK = 6;
 const setups = [];
@@ -39,8 +46,17 @@ export function setupSystems() {
     for (const [line, fn, show] of pauseEntries) if (!show || show()) out.push([T(line), fn]);
     return out;
   };
-  setupCore();
-  campaign.hooks.push((ev, dt) => { if (ev === 'step' && ctx.player) { stepInteract(ctx.player, dt); stepSneakXp(ctx.player, dt); } });
+  setupCore(); setupDoors(); setupKinds(); ctx.goWorld = goWorld;
+  bus.on('use_item', e => useItem(ctx.state, e.uid, e.src));
+  bus.on('use_fav', e => useFav(ctx.state, e.ref, e.src));
+  bus.on('read_book', e => bookScreen(e.id));
+  bus.on('player_dead', () => { if (ctx.mode && ctx.mode.kind === 'campaign') ctx.game.after(2.2, () => { if (ctx.player && ctx.player.dead && !kit.anyOpen()) deathScreen(); }); });
+  ctx.thingsOutside = id => things.find(t => t.kind === 'door' && t.to === id && t.world === 'hrimdal' && !t.at) || null;
+  campaign.hooks.push((ev, dt) => {
+    if (ev !== 'step' || !ctx.player) return; const P = ctx.player, I = ctx.game.input;
+    stepInteract(P, dt); stepSneakXp(P, dt); hubKeys();
+    if (!kit.anyOpen() && !P.dead) { if (I.pressed('quick')) { I.consumeAll(); quickMenu(); } else if (I.pressed('wait')) { I.consumeAll(); waitScreen(); } }
+  });
   setupProgress(); setupNotify();
   for (const f of setups) f();
   bus.on('autosave', () => { if (ctx.state && !ctx.session && g.sceneName === 'play' && !ctx.attract) S.save('auto'); });
@@ -55,7 +71,7 @@ let coreDone = false;
 /** what every mode needs: the brains and creatures in the world step, detection and light, the test API */
 export function setupCore() {
   if (coreDone) return; coreDone = true;
-  steppers.push(stepAI); drawers.push(drawCreatures);
+  steppers.push(stepAI); drawers.push(drawCreatures); drawers.push(drawLights); ctx.lightsNear = torchLightAt;
   ctx.detect = P => detectState(P); ctx.lightAt = P => lightAt(P);
   setupTestApi();
 }
