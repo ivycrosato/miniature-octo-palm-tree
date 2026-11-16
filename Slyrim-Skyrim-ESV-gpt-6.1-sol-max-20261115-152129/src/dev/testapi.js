@@ -1,0 +1,77 @@
+// The test API (plan Part P.7): window.__slyrim. Read-only state always; commands with ?test=1 or while dev mode is on.
+import { E } from '../core/engine.js';
+import { ctx, M } from '../core/ctx.js';
+import { bus } from '../core/bus.js';
+import { tune } from '../core/tune.js';
+import { get, all } from '../core/registry.js';
+import { used } from '../core/text.js';
+import { posOf, canTouch } from '../combat/core.js';
+import { addItem, findItem, equip, count } from '../rpg/inventory.js';
+import { setSkill, charXp, levelNeed, perkStatus, takePerk, allPerks } from '../rpg/character.js';
+import { openLevelUp } from '../ui/hub.js';
+import { stationScreen } from '../ui/stations.js';
+import { openDev } from './devtools.js';
+import { makeDragon, dragons, pinDragon } from '../actors/dragon.js';
+import { spawn } from '../actors/ai.js';
+import { PLACE, U } from '../world/hrimdal.js';
+import { things } from '../world/interact.js';
+import { autoplay, AP, setupAutopilot } from './autopilot.js';
+export const commands = {};
+let spawned = 0;
+/** a dev command: also used by Dev Tools and the autopilot */
+export function command(name, fn) { commands[name] = fn; }
+export function setupTestApi() {
+  const g = ctx.game;
+  command('teleport', (x, y, z) => { const P = ctx.player; if (P) P.teleport(x, y, z); });
+  command('place', (id, dx = 0, dy = 0) => { const p = PLACE[id]; if (!p || !ctx.player) return; const x = (p.x + dx) * U, y = (p.y + dy) * U; if (ctx.worldId !== 'hrimdal') ctx.goWorld('hrimdal', { x, y, facing: 0 }, { instant: true }); else ctx.player.teleport(x, y); });
+  command('autoplay', (on = true, o = {}) => autoplay(on, o));
+  command('face', (x, y) => { const P = ctx.player; P.yaw = Math.atan2(y - P.a.y, x - P.a.x); P.a.facing = P.yaw; });
+  setupAutopilot();
+  command('steal', (value = 20) => bus.emit('steal', { id: 'silver_cup', n: 1, value, owner: 'town' }));
+  command('levelup', () => { const st = ctx.state; charXp(st, levelNeed(st.level) - st.xp + 1); const s = openLevelUp(); if (s) s.pick(); return st.level; });
+  command('perk', () => { const st = ctx.state; const p = allPerks().find(x => perkStatus(st, x.id) === 'ok'); return p ? takePerk(st, p.id) : false; });
+  command('dev', () => openDev());
+  command('canTouch', (i, j) => { const P = ctx.players; return canTouch(P[i].being, P[j].being); });
+  command('talkTo', id => { const b = ctx.people && ctx.people.get(id); if (b) bus.emit('talk', { being: b, npc: id, player: ctx.player }); return !!b; });
+  command('fireAt', (x, y) => bus.emit('fire_at', { x, y, z: 0, src: ctx.player && ctx.player.being }));
+  command('pin', id => { const d = dragons.find(x => x.id === id); if (d) pinDragon(d, ctx.player && ctx.player.being); return !!d; });
+  command('dragon', (kind = 'red', d = 30) => { const P = ctx.player, x = P.a.x + Math.cos(P.yaw) * d * M, y = P.a.y + Math.sin(P.yaw) * d * M; const D = makeDragon(kind, x, y, { world: ctx.worldId, cx: P.a.x, cy: P.a.y, id: 'test_dragon', z: P.a.z + 14 * M }); D.st2 = 'hover'; return D; });
+  /** a station's screen, worked through its rows: the forge makes an item; the alchemy table mixes ingredients */
+  command('craft', (station, what) => {
+    const s = stationScreen(station); if (!s) return false;
+    if (station === 'alchemy') { for (const id of what) { const k = s.rows.findIndex(r => r.it && r.it.id === id && !r.el.classList.contains('fav')); if (k >= 0) { s.i = k; s.pick(); } } const a = s.spec.actions.find(x => x[0] === 'm_fav'); if (a) a[2](s); return true; }
+    for (let tab = 0; tab < 6; tab++) { const k = s.rows.findIndex(r => r.r && r.r.makes[0] === what && !r.off); if (k >= 0) { s.i = k; s.pick(); return true; } const a = s.spec.actions.find(x => x[0] === 'tab_next'); if (a) a[2](s); }
+    return false;
+  });
+  command('give', (id, n = 1) => { if (id === 'gold') ctx.state.gold += n; else addItem(ctx.state, id, n); });
+  command('equip', id => { const it = findItem(ctx.state, id); if (it) equip(ctx.state, it.uid); if (ctx.player) ctx.player.refreshGear(); });
+  command('setSkill', (k, v) => setSkill(ctx.state, k, v));
+  command('spawn', (id, dx = 0, dy = 0, o = {}) => { const P = ctx.player, a = P.a, f = P.yaw; return spawn(id, a.x + Math.cos(f) * (dx || 6 * M) - Math.sin(f) * dy, a.y + Math.sin(f) * (dx || 6 * M) + Math.cos(f) * dy, Object.assign({ facing: f + Math.PI, id: 'spawn_' + (++spawned) }, o)).id; });
+  command('time', h => { const S = ctx.state; S.time = Math.floor(S.time / 1440) * 1440 + h * 60; });
+  command('weather', k => { const w = ctx.state.weather; w.from = k; w.kind = k; w.blend = 1; w.next = ctx.state.time + 600; });
+  command('cheat', (k, on = true) => { ctx.state.cheats[k] = on; });
+  command('words', () => { for (const w of ['var', 'kolt', 'brask', 'skard', 'elm', 'hvis']) ctx.state.words[w] = 'free'; });
+  command('kill', id => { const b = ctx.beings.find(x => x.id === id); if (b) { b.hp = 0; import('../combat/core.js').then(m => m.kill(b, ctx.player && ctx.player.being, { kind: 'melee' })); } });
+  const api = {
+    get ready() { return !!ctx.ready; },
+    state() {
+      const S = ctx.state, P = ctx.player, p = P ? posOf(P.being) : null;
+      return { scene: g.sceneName, world: ctx.worldId, screens: (window.__slyrimScreens || (() => []))(), mode: ctx.mode && ctx.mode.kind,
+        player: S && P ? { x: p.x, y: p.y, z: p.z, m: [p.x / M, p.y / M, p.z / M], hp: S.hp, mp: S.mp, sp: S.sp, level: S.level, gold: S.gold, bounty: S.bounty, skills: Object.fromEntries(Object.entries(S.skills).map(([k, v]) => [k, v.lv])), perks: S.perks, view: P.view, sneak: P.sneak, sheathed: P.sheathed, place: P.place, dead: P.dead, focus: P.focus ? (P.focus.thing ? P.focus.thing.kind + ':' + P.focus.thing.id : 'being:' + P.focus.being.id) : null, eq: S.eq, yaw: P.yaw } : null,
+        quests: S ? S.quests : null, flags: S ? S.flags : null, time: S ? S.time : null, weather: S ? S.weather.kind : null,
+        beings: ctx.beings.filter(b => b.kind !== 'player').slice(0, 60).map(b => { const q = posOf(b); return { id: b.id, def: b.def && b.def.id, team: b.team, hp: Math.round(b.hp), alive: b.alive, aware: Math.round(b.aware * 100) / 100, state: b.ai && b.ai.state, d: ctx.player ? Math.round(Math.hypot(q.x - ctx.player.a.x, q.y - ctx.player.a.y) / M) : null }; }),
+        events: bus.log.slice(-20).map(e => e.name), session: ctx.session ? { mode: ctx.session.mode, me: ctx.session.me } : null };
+    },
+    cmd(name, ...args) { if (!ctx.test && !(ctx.state && Object.values(ctx.state.cheats).some(Boolean)) && !ctx.devOn) throw new Error('commands need ?test=1 or dev mode'); const f = commands[name]; if (!f) throw new Error('no command ' + name); return f(...args); },
+    advance(s) { g.advance(s); },
+    get input() { return g.input; }, get players() { return g.players; },
+    tune: { get: id => tune.get(id), set: (id, v) => tune.set(id, v), reset: id => tune.reset(id) },
+    lines: { missing: () => [...used].filter(id => !E.lang.has(id)) },
+    audio: { levels: () => ctx.audio ? ctx.audio.levels() : null, render: (name, secs) => ctx.audio.render(name, secs) },
+    net: { stats: () => ctx.net ? ctx.net.stats() : null },
+    autoplay: () => ({ on: AP.on, step: AP.step, log: AP.log.slice(-40), demo: !!AP.demo }),
+    count: id => ctx.state ? count(ctx.state, id) : 0, ctx: () => (ctx.test ? ctx : null), things: f => (ctx.test ? things.filter(f) : null)
+  };
+  window.__slyrim = api; g.debug = { snapshot: () => api.state() };
+}
+export { all, get };

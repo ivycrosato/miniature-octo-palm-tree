@@ -1,0 +1,49 @@
+{
+  "sourceInformation": {
+    "date": "2026-11-15 15:21:29",
+    "source": "The Elder Scrolls V: Skyrim (Bethesda Game Studios, 2011)",
+    "plan": "plan.md",
+    "genre": "Open-world action RPG with stealth and theft",
+    "perspective": "Third person (default) and first person, switchable; shared and split-screen chase cameras for local play",
+    "tech": "my-3D2dge 0.101.0 (2D and 3D engines, patched); three.js 0.182.0 (WebGPURenderer, WebGL 2 fallback); Rapier 0.19.3 (rapier3d-simd-compat); Web Audio API; 52in1 session client 1.4.0; one HTML file; bun for bundling; Playwright 1.63.0 for tests",
+    "artDirection": "my-3D2dge native 3D: a low-resolution pixel picture, procedural terrain and structure textures, pixel-art characters on cards, low-poly pen-drawn dragons and creatures; a cold northern palette with firelight and aurora",
+    "animation": "Procedural: engine Humanoid rigs with E.MOVES and new poses, procedural creature and dragon skeletons with IK feet, first-person arms on the overlay pen, scripted set pieces with timers",
+    "audio": "All Web Audio code: synthesized instruments for music at 10% default volume, synthesized sound effects, syllable-driven gibberish voices",
+    "online": "52in1 sessions: parallel, ghost, shared-world co-op and versus (session protocol 1, client 1.4.0)",
+    "testing": "Headless Chromium through Playwright 1.63.0 (WebGL 2 on SwiftShader); Node unit tests; a scripted full playthrough with an autopilot; the 52in1 session harness in every online mode; the catalogue checker; emulated pads and phone profiles; OfflineAudioContext checks; screenshots and filmstrips at 1920x1080 looked at by eye",
+    "research": "The plan's research (the my-3D2dge 0.101.0 handoff, the 52in1 session, catalogue and languages pages, a single-file packaging test), plus reading the engine source and API for every system used",
+    "environment": "Claude Code (cloud session, headless); Linux",
+    "model": "Anthropic, Claude, reasoning effort xhigh",
+    "usage": "added on import"
+  },
+  "testingFeedback": [
+    "Most helpful: The scripted playthrough. The autopilot plays every quest with real inputs, and it found most content bugs: missing stage triggers, interiors built twice, bad spawn rules.",
+    "Least helpful: Full-size screenshots under software rendering. They are slow and show little that the state checks do not show."
+  ],
+  "engineFeedback": [
+    "Liked most: One file gives a 3D world, physics, rigs, a pen for procedural models, input with pads and a pause menu. No asset files are necessary.",
+    "Would change: A documented way to keep several worlds (a terrain world and many interiors, each with physics) and switch between them. Much glue code did this."
+  ],
+  "promptFeedback": [
+    "Confusing: The plan fixes the model, the tool and the environment in advance. The game was built in another environment, so those values do not match the run.",
+    "Would change: Let the builder fill the model and environment fields from the real run, and keep the scope smaller so each feature gets more polish."
+  ],
+  "aiHub": {
+    "name": "Slyrim",
+    "tagline": "A northern open-world RPG",
+    "description": "Explore a cold northern valley in first or third person. Fight, sneak, steal and shout to kill the dragons that came back.",
+    "type": "Game",
+    "genre": "RPG",
+    "source": "The Elder Scrolls V: Skyrim",
+    "series": "",
+    "players": "1-4",
+    "controls": "WASD to move; mouse to look; click to attack; right click to block; E to use; Z to shout; C to sneak; Tab for menu; arrows for player 2; gamepad to play",
+    "tags": [
+      "action-rpg",
+      "open world",
+      "fantasy",
+      "stealth",
+      "co-op"
+    ]
+  }
+}

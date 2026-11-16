@@ -1,0 +1,32 @@
+// crafting recipes (plan Part F.14): station, what it makes, what it needs, the perk it needs
+import { def } from '../core/registry.js';
+const R = (id, station, makes, needs, o = {}) => def('recipe', id, Object.assign({ station, makes, needs }, o));
+R('smelt_iron', 'smelter', ['iron_bar', 1], [['iron_ore', 1]]);
+R('smelt_steel', 'smelter', ['steel_bar', 1], [['iron_bar', 1], ['coal', 1]]);
+R('tan_deer', 'tanning', ['leather', 2], [['deer_hide', 1]]); R('tan_wolf', 'tanning', ['leather', 2], [['wolf_pelt', 1]]); R('tan_ox', 'tanning', ['leather', 2], [['ox_hide', 1]]);
+R('cut_strips', 'tanning', ['leather_strips', 3], [['leather', 1]]);
+R('chop_wood', 'chopping', ['firewood', 1], []);
+const F = (id, needs, perk, group) => R('forge_' + id, 'forge', [id, 1], needs, { perk, group });
+F('iron_dagger', [['iron_bar', 1], ['leather_strips', 1]], null, 'iron'); F('iron_sword', [['iron_bar', 2], ['leather_strips', 1]], null, 'iron');
+F('iron_axe', [['iron_bar', 2], ['leather_strips', 1]], null, 'iron'); F('iron_mace', [['iron_bar', 3], ['leather_strips', 1]], null, 'iron');
+F('iron_greatsword', [['iron_bar', 4], ['leather_strips', 2]], null, 'iron'); F('hide_shield', [['leather', 2], ['leather_strips', 1]], null, 'iron');
+F('iron_shield', [['iron_bar', 4], ['leather_strips', 1]], null, 'iron'); F('iron_helmet', [['iron_bar', 2], ['leather_strips', 1]], null, 'iron');
+F('iron_armour', [['iron_bar', 5], ['leather_strips', 3]], null, 'iron'); F('iron_gauntlets', [['iron_bar', 2], ['leather_strips', 2]], null, 'iron');
+F('iron_boots', [['iron_bar', 3], ['leather_strips', 2]], null, 'iron');
+R('forge_iron_arrow', 'forge', ['iron_arrow', 24], [['iron_bar', 1], ['firewood', 1]], { group: 'iron' });
+F('steel_sword', [['steel_bar', 2], ['leather_strips', 1]], 'steel_smithing', 'steel'); F('steel_axe', [['steel_bar', 2], ['leather_strips', 1]], 'steel_smithing', 'steel');
+F('steel_greatsword', [['steel_bar', 4], ['leather_strips', 2]], 'steel_smithing', 'steel'); F('steel_helmet', [['steel_bar', 2], ['leather_strips', 1]], 'steel_smithing', 'steel');
+F('steel_armour', [['steel_bar', 5], ['leather_strips', 3]], 'steel_smithing', 'steel'); F('steel_gauntlets', [['steel_bar', 2], ['leather_strips', 2]], 'steel_smithing', 'steel');
+F('steel_boots', [['steel_bar', 3], ['leather_strips', 2]], 'steel_smithing', 'steel');
+R('forge_steel_arrow', 'forge', ['steel_arrow', 24], [['steel_bar', 1], ['firewood', 1]], { perk: 'steel_smithing', group: 'steel' });
+F('bronze_sword', [['bronze_ingot', 1], ['iron_bar', 1], ['leather_strips', 1]], 'bronze_work', 'bronze'); F('bronze_shield', [['bronze_ingot', 1], ['iron_bar', 2], ['leather_strips', 1]], 'bronze_work', 'bronze');
+F('bronze_helmet', [['bronze_ingot', 1], ['iron_bar', 1], ['leather_strips', 1]], 'bronze_work', 'bronze');
+R('forge_bronze_arrow', 'forge', ['bronze_arrow', 24], [['bronze_ingot', 1], ['firewood', 1]], { perk: 'bronze_work', group: 'bronze' });
+F('dragonbone_sword', [['dragon_bone', 1], ['dragon_scale', 1], ['leather_strips', 2]], 'dragon_craft', 'dragon');
+F('dragonbone_bow', [['dragon_bone', 1], ['dragon_scale', 1], ['leather_strips', 2]], 'dragon_craft', 'dragon');
+F('dragonbone_shield', [['dragon_bone', 1], ['dragon_scale', 2], ['leather_strips', 2]], 'dragon_craft', 'dragon');
+R('cook_soup', 'cooking', ['vegetable_soup', 1], [['cabbage', 1], ['potato', 1], ['salt', 1]]);
+R('cook_stew', 'cooking', ['venison_stew', 1], [['venison', 1], ['potato', 1], ['salt', 1]]);
+R('cook_salmon', 'cooking', ['grilled_salmon', 1], [['salmon', 1]]);
+/** what improves each material at the workbench */
+export const IMPROVE_WITH = { iron: 'iron_bar', steel: 'steel_bar', bronze: 'bronze_ingot', bone: 'steel_bar', hide: 'leather', leather: 'leather', wood: 'iron_bar', wool: 'leather_strips' };
