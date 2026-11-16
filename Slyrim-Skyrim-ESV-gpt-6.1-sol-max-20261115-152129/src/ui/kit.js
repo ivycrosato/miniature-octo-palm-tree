@@ -67,9 +67,9 @@ export class Screen {
   destroy() { this.root.remove(); }
 }
 /** open a screen on top of the stack */
-export function open(spec) { const s = new Screen(spec); stack.push(s); ctx.game.input.consumeAll(); if (spec.onOpen) spec.onOpen(s); return s; }
+export function open(spec) { const prev = stack[stack.length - 1]; if (prev) prev.root.classList.add('under'); const s = new Screen(spec); stack.push(s); ctx.game.input.consumeAll(); if (spec.onOpen) spec.onOpen(s); return s; }
 /** close the top screen (or a given one) */
-export function close(s) { s = s || ui(); if (!s) return; const i = stack.indexOf(s); if (i < 0) return; stack.splice(i, 1); s.destroy(); if (s.spec.onClose) s.spec.onClose(s); ctx.game.input.consumeAll(); }
+export function close(s) { s = s || ui(); if (!s) return; const i = stack.indexOf(s); if (i < 0) return; stack.splice(i, 1); s.destroy(); if (stack.length) stack[stack.length - 1].root.classList.remove('under'); if (s.spec.onClose) s.spec.onClose(s); ctx.game.input.consumeAll(); }
 export function closeAll() { while (stack.length) close(stack[stack.length - 1]); }
 /** the top screen's step (call it from the scene's update); returns true while a screen is open */
 export function step(dt) { const s = ui(); if (!s) return false; s.update(dt); return true; }

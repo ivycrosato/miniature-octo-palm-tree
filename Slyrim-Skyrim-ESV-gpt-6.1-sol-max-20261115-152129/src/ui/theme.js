@@ -2,7 +2,8 @@
 // height), headings 44 px and up, rows 64 px, a 5% safe margin, a frost-blue focus glow. No font files: system stacks.
 export const THEME = { ink: '#e8eef6', paper: 'rgba(11,18,32,.84)', accent: '#8fd8ff', muted: '#9fb4cc', danger: '#ff6b5a', line: '#2f4766', gold: '#f2b23c', good: '#8fe0a8' };
 export const SERIF = 'Georgia, "Times New Roman", serif', SANS = 'system-ui, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif';
-const CSS = `
+const CSS = `.sly.screen.under .bar-line{visibility:hidden}
+
 .sly{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;color:${THEME.ink};font-family:${SANS};font-size:var(--k,clamp(12px,2.6vh,44px));line-height:1.3;z-index:15;overflow:hidden;-webkit-user-select:none;user-select:none}
 .sly *{box-sizing:border-box}
 .sly .safe{position:absolute;inset:5% 5% 5% 5%}

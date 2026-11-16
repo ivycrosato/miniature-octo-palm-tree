@@ -2,6 +2,5 @@
 node_modules/
 Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129/build/
 Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129/tests/out/
-Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129/.smoke*.mjs
-Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129/.hubtry.mjs
+Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129/.*.mjs
 games.json

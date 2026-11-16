@@ -29,6 +29,8 @@ import { setupQuests } from '../quests/runtime.js';
 import { stepPeople, people } from '../actors/npcs.js';
 import { talk, bark } from '../ui/dialogue.js';
 import { setupContent } from '../quests/index.js';
+import { openDev, setupDev } from '../dev/devtools.js';
+import { aboutScreen, helpScreen } from '../ui/about.js';
 
 export const QUICK = 6;
 const setups = [];
@@ -44,6 +46,9 @@ export function setupSystems() {
   titleActions.push(['menu.continue', () => { const l = S.latest(); if (l) S.load(l.slot); }, () => !!S.latest()]);
   titleActions.push(['menu.new_game', () => g.go('create')]);
   titleActions.push(['menu.load', () => S.show('load'), () => !!S.latest()]);
+  const fromPause = fn => () => { if (g.shell) g.shell.hide(); fn(); };
+  pauseEntries.push(['menu.help', fromPause(helpScreen)], ['menu.about', fromPause(aboutScreen)], ['menu.dev', fromPause(openDev), () => !ctx.session]);
+  ctx.titleLate = () => { titleActions.push(['menu.settings', () => g.shell.show('settings')], ['menu.help', helpScreen], ['menu.about', aboutScreen]); };
   ctx.pauseItems = () => {
     if (ctx.session) return [];
     const out = [];
@@ -54,7 +59,7 @@ export function setupSystems() {
   setupCore(); setupDoors(); setupKinds(); ctx.goWorld = goWorld;
   setupQuests(); setupEvents(); ctx.people = people; steppers.push(stepPeople);
   bus.on('talk', e => talk(e.being)); bus.on('bark', e => { const D = e.being.data.npc && get('dialogue', e.being.data.npc); const id = D && D.bark ? D.bark(e.being, e.id) : null; if (id) bark(e.being, id); });
-  setupContent();
+  setupContent(); setupDev();
   bus.on('use_item', e => useItem(ctx.state, e.uid, e.src));
   bus.on('use_fav', e => useFav(ctx.state, e.ref, e.src));
   bus.on('read_book', e => bookScreen(e.id));
@@ -67,6 +72,7 @@ export function setupSystems() {
   });
   setupProgress(); setupNotify();
   for (const f of setups) f();
+  if (ctx.titleLate) ctx.titleLate();
   bus.on('autosave', () => { if (ctx.state && !ctx.session && g.sceneName === 'play' && !ctx.attract) S.save('auto'); });
   g.hook('input', () => {
     if (g.sceneName !== 'play' || kit.anyOpen() || g.paused) return;

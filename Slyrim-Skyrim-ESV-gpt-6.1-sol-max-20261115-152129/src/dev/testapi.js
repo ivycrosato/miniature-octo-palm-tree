@@ -46,7 +46,7 @@ export function setupTestApi() {
     get input() { return g.input; }, get players() { return g.players; },
     tune: { get: id => tune.get(id), set: (id, v) => tune.set(id, v), reset: id => tune.reset(id) },
     lines: { missing: () => [...used].filter(id => !E.lang.has(id)) },
-    audio: { levels: () => ctx.audio ? ctx.audio.levels() : null },
+    audio: { levels: () => ctx.audio ? ctx.audio.levels() : null, render: (name, secs) => ctx.audio.render(name, secs) },
     net: { stats: () => ctx.net ? ctx.net.stats() : null },
     autoplay: () => ({ on: AP.on, step: AP.step, log: AP.log.slice(-40), demo: !!AP.demo }),
     count: id => ctx.state ? count(ctx.state, id) : 0, ctx: () => (ctx.test ? ctx : null), things: f => (ctx.test ? things.filter(f) : null)

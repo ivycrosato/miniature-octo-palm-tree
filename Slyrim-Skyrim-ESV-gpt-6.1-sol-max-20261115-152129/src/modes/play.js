@@ -77,7 +77,7 @@ export function drawWorld(r) {
 }
 /** the HUD's numbers for a player */
 export function hudInfo(P) {
-  const S = P.S, a = P.a, B = P.being, out = { yaw: P.yaw, x: a.x, y: a.y, hp: [S.hp, maxOf(S, 'hp')], mp: [S.mp, maxOf(S, 'mp')], sp: [S.sp, maxOf(S, 'sp')], combat: P.combatT > 0, hpLow: S.hp < maxOf(S, 'hp') * .25, markers: [], dev: Object.values(S.cheats).some(Boolean) };
+  const S = P.S, a = P.a, B = P.being, out = { yaw: P.yaw, x: a.x, y: a.y, hp: [S.hp, maxOf(S, 'hp')], mp: [S.mp, maxOf(S, 'mp')], sp: [S.sp, maxOf(S, 'sp')], combat: P.combatT > 0, hpLow: S.hp < maxOf(S, 'hp') * .25, markers: [], dev: Object.values(S.cheats).some(Boolean), corner: ctx.devHud ? ctx.devHud() : [] };
   const right = P.R, armed = !P.sheathed;
   const ranged = armed && (P.R.mode === 'draw' || P.R.mode === 'charge' || P.L.mode === 'charge' || P.R.mode === 'stream' || P.L.mode === 'stream');
   out.cross = P.focus ? (P.focus.steal ? 'steal' : 'hand') : (P.view === 'first' || ranged || (ctx.settings && ctx.settings.crosshair === 'always')) ? 'dot' : null;

@@ -41,7 +41,7 @@ export async function build({ copy = true, quiet = false } = {}) {
   // 1. the game bundle
   const b = spawnSync('bun', ['build', join(DEV, 'src/main.js'), '--format', 'esm', '--target', 'browser', '--outfile', join(DEV, 'build/game.js')], { encoding: 'utf8' });
   if (b.status !== 0) throw new Error('bun build failed:\n' + b.stdout + b.stderr);
-  const game = readFileSync(join(DEV, 'build/game.js'), 'utf8');
+  const game = readFileSync(join(DEV, 'build/game.js'), 'utf8').replace(/__BUILD_DATE__/g, new Date().toISOString().slice(0, 10));
   if (/^\s*import\s|\bimport\(/m.test(game)) throw new Error('the game bundle imports something: it must use E.THREE, E.TSL and E.RAPIER');
   // 2. the engines, patched (engine/PATCHES.md)
   const e2 = readFileSync(join(DEV, 'engine/my-3d2dge.js'), 'utf8'), e3 = readFileSync(join(DEV, 'engine/my-3d2dge-3d.js'), 'utf8');

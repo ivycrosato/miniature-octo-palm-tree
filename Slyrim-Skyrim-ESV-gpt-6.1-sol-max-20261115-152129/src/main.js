@@ -7,6 +7,7 @@ import { tune } from './core/tune.js';
 import { T } from './core/text.js';
 import { INPUT, CONTROL_NAMES } from './core/input.js';
 import './data/items.js'; import './data/skills.js'; import './data/magic.js'; import './data/recipes.js';
+import { setupAudio } from './audio/audio.js';
 import { boot } from './modes/boot.js';
 
 const info = window.__slyrimHub ? await window.__slyrimHub : null;
@@ -32,4 +33,5 @@ const game = new E.Game({ id: 'slyrim', canvas: 'screen', res: 'ps1', expand: tr
 ctx.game = game;
 window.__game = game;
 bus.now = () => game.real;
+setupAudio(game);
 boot(game, info);
