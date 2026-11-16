@@ -1,7 +1,9 @@
 // The playthrough (plan Part R): the autopilot plays MQ1 to MQ6 and SQ01 to SQ08 with real interactions (dialogue
 // choices, locks, crafting, combat); dev teleports between far places, fights sped up with tuning. Asserts every quest
 // stage on the way and the Demo Complete screen; prints the autopilot's timeline on a failure.
-import { open, until } from '../helpers/browser.mjs';
+import { open, until, OUT } from '../helpers/browser.mjs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const QUESTS = { mq1: [10, 20, 30, 40, 50, 60], mq2: [10, 20, 30], mq3: [10, 20, 30, 40, 50, 60], mq4: [10, 20, 30, 40, 50], mq5: [10, 20, 30, 40, 50], mq6: [10, 20, 30, 40, 50],
   sq01: [10, 20], sq02: [10, 20, 30, 40, 50, 60], sq03: [10, 20, 30], sq04: [10, 20, 30], sq05: [10, 20, 30], sq06: [10, 20, 30], sq07: [10], sq08: [10, 20, 30, 40] };
@@ -22,6 +24,7 @@ export async function run(t) {
       if (same > 120) break;   // (about 8 minutes of game time on one step: stuck)
     }
     const res = await page.evaluate(() => ({ seen: window.__seen, a: window.__slyrim.autoplay(), st: window.__slyrim.state() }));
+    writeFileSync(join(OUT, 'playthrough.json'), JSON.stringify({ demo: done, minutes: Math.round((Date.now() - t0) / 600) / 100, stages: res.seen, last: res.a.log }, null, 1));
     for (const [q, stages] of Object.entries(QUESTS)) {
       const seen = res.seen[q] || {};
       t.ok(stages.every(n => seen[n]), q + ' passes every stage', 'saw ' + JSON.stringify(seen));

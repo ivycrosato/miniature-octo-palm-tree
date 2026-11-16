@@ -10,7 +10,7 @@ const DEV = join(dirname(fileURLToPath(import.meta.url)), '..'), ROOT = join(DEV
 const FILE = 'Slyrim-Skyrim-ESV-gpt-6.1-sol-max-20261115-152129.html', SLUG = 'slyrim-skyrim-esv-gpt-6-1-sol-max-20261115-152129';
 const OUTDIR = join(ROOT, 'PACKAGE/covers', SLUG);
 const wait = (page, fn, arg, ms = 120000) => page.waitForFunction(fn, arg, { timeout: ms, polling: 200 });
-const quiet = page => page.evaluate(() => { for (const e of document.querySelectorAll('.sly.hud .msgs, .sly.hud .banner, .sly.hud .tut, .sly.hud .sub, .sly.hud .quest, .sly.hud .prompt, .sly.hud .dev, .esh-toast')) e.style.visibility = 'hidden'; });
+const quiet = page => page.evaluate(() => { for (const e of document.querySelectorAll('.sly.hud .msgs, .sly.hud .banner, .sly.hud .tut, .sly.hud .sub, .sly.hud .quest, .sly.hud .prompt, .sly.hud .dev, .esh-toast')) e.style.display = 'none'; });
 
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 mkdirSync(OUTDIR, { recursive: true });
@@ -28,12 +28,18 @@ const shot = async (name, query, setup) => {
 await shot('0.jpg', '?backend=webgl', async page => { await wait(page, () => !!document.querySelector('.title-menu .row')); await page.waitForTimeout(4000); });
 // 1: Pinewater at dusk, third person, torches, people, the aurora starting
 await shot('1.jpg', '?test=1&backend=webgl&start=play', async page => {
-  await wait(page, () => window.__slyrim && window.__slyrim.state().player);
+  await wait(page, () => window.__slyrim && window.__slyrim.state().player); await page.evaluate(h => { window.__coverHour = h; }, +(process.env.COVER_HOUR || 20.75));
   await page.evaluate(() => { const c = window.__slyrim.ctx(), F = c.state.flags; F.at_holger = null; c.state.tutorial = new Proxy({}, { get: () => true });
-    const O = (dx, dy) => ['hrimdal', 'pinewater', dx, dy]; Object.assign(F, { at_gyda: O(-6, -5.5), at_bjarke: O(-1, -4), at_eskil: O(3, -1), at_maren: O(-12, -3), at_oddny: O(14, -4), at_holger: O(-3, -2) });
-    window.__slyrim.cmd('time', 20.9); window.__slyrim.cmd('weather', 'clear'); F.freezeTime = true; window.__slyrim.cmd('place', 'pinewater', 6, 8); });
+    const O = (dx, dy) => ['hrimdal', 'pinewater', dx, dy]; Object.assign(F, { at_gyda: O(-4.5, -6.2), at_bjarke: O(-1.2, 0.5), at_eskil: O(1.8, -2.4), at_maren: O(-8.5, -4.4), at_oddny: O(4.2, -5.8), at_holger: O(-2.6, -3.6) });
+    window.__slyrim.cmd('time', window.__coverHour || 19.7); window.__slyrim.cmd('weather', 'clear'); F.freezeTime = true; window.__slyrim.cmd('place', 'pinewater', 8, 4); });
   await page.evaluate(() => window.__slyrim.advance(4));
-  await page.evaluate(() => { const c = window.__slyrim.ctx(), P = c.player; P.yaw = Math.atan2(-14, -11); P.pitch = .1; P.view = 'third'; P.dist = 6 * 16; });
+  await page.evaluate(() => {
+    const c = window.__slyrim.ctx(), P = c.player, M = 16, f = Math.atan2(-18, -16), fx = Math.cos(f), fy = Math.sin(f), rx = -fy, ry = fx; P.yaw = f; P.a.facing = f; P.view = 'third';
+    const spots = { gyda: [9, -2.5], bjarke: [6.5, 2.2], eskil: [12, 4.5], oddny: [14, -5], maren: [11, -7] };
+    for (const b of c.beings) if (b.kind === 'npc' && b.a && !(b.data.npc in spots) && Math.hypot(b.a.x - P.a.x, b.a.y - P.a.y) < 40 * M) { b.a.place(P.a.x - fx * 300 * M, P.a.y - fy * 300 * M); if (b.ai) b.ai.anchor = { x: b.a.x, y: b.a.y, z: b.a.z, world: 'hrimdal' }; }
+    for (const [id, [d, r]] of Object.entries(spots)) { const b = c.people.get(id); if (!b || !b.a) continue; const x = P.a.x + fx * d * M + rx * r * M, y = P.a.y + fy * d * M + ry * r * M; b.a.place(x, y); b.ai.anchor = { x, y, z: b.a.z, world: 'hrimdal' }; b.a.facing = Math.atan2(P.a.y - y, P.a.x - x) + (r > 0 ? -.6 : .6); }
+    const a = P.a; P.override = () => ({ x: a.x - fx * 4.6 * M + rx * 1.3 * M, y: a.y - fy * 4.6 * M + ry * 1.3 * M, z: a.z + 2.3 * M, yaw: f - .05, pitch: -.04, roll: 0, fov: 62 });
+  });
   await page.evaluate(() => window.__slyrim.advance(1.5)); await quiet(page); await page.waitForTimeout(2500);
 });
 // 2: the red dragon breathing fire at North Watch, the player blocking

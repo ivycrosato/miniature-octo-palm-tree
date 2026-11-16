@@ -50,7 +50,7 @@ export function stepPeople(dt) {
   for (const D of all('npc')) {
     if (st.killed['npc_' + D.id]) continue;
     if (st.flags['hide_' + D.id]) { const b = people.get(D.id); if (b) { despawn(b); people.delete(D.id); } continue; }
-    const want = wantFor(D.id); let b = people.get(D.id);
+    const want = wantFor(D.id); let b = people.get(D.id); if (b && b.gone) { people.delete(D.id); b = null; }
     if (want === 'follower') continue;
     if (!want || want.lazy) { if (b && (b.world !== ctx.worldId || dist(b) > 40 * M)) { despawn(b); people.delete(D.id); } continue; }   // (at home, or in a hall not yet built: not drawn)
     if (!b) { if (want.world !== ctx.worldId || !visibleSpot(want) || st.flags['at_' + D.id] || stepPeople.fresh) b = makePerson(D.id, want); else continue; }
@@ -95,5 +95,5 @@ BRAINS.guard = (b, dt, P) => {
 function anim(b, pose) { if (b.rig) b.a.anim = { pose: b.down > 0 ? 'kneel' : pose, hurt: b.flash > 0, expr: b.fleeing ? 'wince' : null }; if (b.rig && b.data.torch) { const night = ctx.night > .5; b.rig.o.weapon = night ? 'torch' : 'sword'; } }
 /** everyone in a world (for a move or a load: people are made again where the hour puts them) */
 export function resetPeople() { for (const b of [...people.values()]) despawn(b); people.clear(); for (const g of guards.splice(0)) despawn(g); }
-bus.on('load', resetPeople); bus.on('new_game', resetPeople); bus.on('enter', () => { stepPeople.fresh = true; stepPeople.t = 0; });
+bus.on('load', resetPeople); bus.on('new_game', resetPeople); bus.on('world_reset', resetPeople); bus.on('enter', () => { stepPeople.fresh = true; stepPeople.t = 0; });
 export { AIS };

@@ -37,7 +37,7 @@ export function makeDragon(kind, x, y, o = {}) {
   bus.emit('dragon_spawn', { dragon: d });
   return d;
 }
-export function removeDragon(d) { const i = dragons.indexOf(d); if (i >= 0) dragons.splice(i, 1); removeBeing(d); const W = ctx.worlds[d.world] || ctx.world; if (d.a) W.remove(d.a); }
+export function removeDragon(d) { if (!d || d.gone) return; d.gone = true; if (d.breathSfx) { d.breathSfx.stop(); d.breathSfx = null; } const i = dragons.indexOf(d); if (i >= 0) dragons.splice(i, 1); removeBeing(d); const W = ctx.worlds[d.world] || ctx.world; if (d.a) W.remove(d.a); }
 function initChains(d) { const a = d.a, S = d.S; d.neck = Array.from({ length: NECK }, (_, i) => [a.x + Math.cos(d.yaw) * (2.4 + i * .75) * M * S, a.y + Math.sin(d.yaw) * (2.4 + i * .75) * M * S, a.z + i * .3 * M * S]); d.tail = Array.from({ length: TAIL }, (_, i) => [a.x - Math.cos(d.yaw) * (2.4 + i * .8) * M * S, a.y - Math.sin(d.yaw) * (2.4 + i * .8) * M * S, a.z]); }
 function wakeUp(d) { if (!d.sleeping) return; d.sleeping = false; d.st2 = 'ground'; d.t = 0; d.groundT = 4; bus.emit('dragon_wake', { dragon: d }); bus.emit('roar', { being: d }); ctx.audio && ctx.audio.sfx('roar', d.a); }
 /** the player or whoever it hunts: the nearest hostile it can reach (players, followers, guards) */

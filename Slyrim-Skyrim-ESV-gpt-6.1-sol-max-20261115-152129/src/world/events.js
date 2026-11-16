@@ -41,7 +41,7 @@ function stepGroups() {
 bus.on('kill', e => { const b = e.target; if (!S() || !b.id) return; if (b.group || b.unique || /^npc_|^guard_/.test(b.id)) S().killed[b.id] = true; if (b.kind !== 'player') S().stats.kills += e.src && e.src.kind === 'player' ? 1 : 0; });
 /** clear the spawned groups (a load or a new game: they come again where they are not dead) */
 function resetGroups() { for (const g of GROUPS) { for (const b of g.members) despawn(b); g.members = []; g.spawned = false; } for (const d of dragons.slice()) removeDragon(d); }
-bus.on('load', resetGroups); bus.on('new_game', resetGroups);
+bus.on('load', resetGroups); bus.on('new_game', resetGroups); bus.on('world_reset', resetGroups);
 
 /* ---- wildlife: deer, foxes, rabbits in the valley; crabs at the lake; ravens over ruins; wolves hunt at night ---- */
 let wild = [], wildT = 0;
@@ -60,7 +60,7 @@ function stepWild(dt) {
   for (let i = 0; i < n2; i++) wild.push(spawn(kind, (m + i * 3) * U, (n + i * 2) * U, { world: 'hrimdal' }));
 }
 function resetWild() { for (const b of wild) despawn(b); wild = []; }
-bus.on('load', resetWild); bus.on('new_game', resetWild);
+bus.on('load', resetWild); bus.on('new_game', resetWild); bus.on('world_reset', resetWild);
 
 /* ---- Voice Stones: the runes glow, the camera pushes in, the word appears with its meaning ---- */
 export function learnWord(word, free) {

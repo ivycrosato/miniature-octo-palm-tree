@@ -49,7 +49,7 @@ export function spawn(defId, x, y, o = {}) {
   ai.push(b);
   return b;
 }
-export function despawn(b) { const i = ai.indexOf(b); if (i >= 0) ai.splice(i, 1); removeBeing(b); const W = ctx.worlds[b.world]; if (W && b.a) W.remove(b.a); }
+export function despawn(b) { if (!b || b.gone) return; b.gone = true; const i = ai.indexOf(b); if (i >= 0) ai.splice(i, 1); removeBeing(b); const W = ctx.worlds[b.world]; if (W && b.a) W.remove(b.a); }   // (once: a removed actor is never touched again)
 /** the creatures' own drawing (rigs are the engine's cards) */
 export function drawCreatures(world) { for (const b of ai) if (b.draw && b.world === ctx.worldId && b.a) b.draw(world, b); }
 

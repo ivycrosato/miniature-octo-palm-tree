@@ -11,7 +11,7 @@ import { addItem, findItem, equip } from '../rpg/inventory.js';
 import { PLACE, U, height } from '../world/hrimdal.js';
 import { campaign } from './campaign.js';
 import { spawn, ai } from '../actors/ai.js';
-import { makeDragon, dragons, pinDragon } from '../actors/dragon.js';
+import { makeDragon, dragons, pinDragon, removeDragon } from '../actors/dragon.js';
 import { clearRound } from './hunt.js';
 import { things } from '../world/interact.js';
 import { tp, face, near, fight, castAt, shout, sneak, use } from '../dev/autopilot.js';
@@ -57,7 +57,7 @@ export const attract = {
     const I = ctx.game.input;
     if (poke || padPoke()) { I.consumeAll(); if (ctx.game.players) for (const q of ctx.game.players) q.consumeAll && q.consumeAll(); poke = false; ctx.game.go('title'); return; }
     this.press.textContent = I.lastDevice === 'gamepad' ? T('attract.press_button') : T('attract.press_key');
-    if (!cur || t >= cur.dur) { if (cur) shot = (shot + 1) % SHOTS.length; cur = Object.assign(Object.create(SHOTS[shot]), {}); t = 0; for (const d of dragons.slice()) if (/^attract_/.test(d.id)) d.alive = false; try { cur.setup(); } catch (e) { /* a shot that cannot start skips on */ t = cur.dur; } bus.emit('attract_shot', { shot }); }
+    if (!cur || t >= cur.dur) { if (cur) shot = (shot + 1) % SHOTS.length; cur = Object.assign(Object.create(SHOTS[shot]), {}); t = 0; for (const d of dragons.slice()) if (/^attract_/.test(d.id)) removeDragon(d); try { cur.setup(); } catch (e) { /* a shot that cannot start skips on */ t = cur.dur; } bus.emit('attract_shot', { shot }); }
     t += dt; this.logoEl.style.display = cur.logo ? '' : 'none';
     campaign.update(dt);
     if (P() && !P().frozen) try { cur.step(dt, t); } catch (e) { t = cur.dur; }

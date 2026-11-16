@@ -84,6 +84,7 @@ function spawnDragon() {
 }
 /** take the last round (or the campaign's beings) out of the world */
 export function clearRound() {
+  bus.emit('world_reset', {});   // (people, wildlife and spawn groups forget the beings that go now)
   for (const b of ai.slice()) despawn(b); for (const d of dragons.slice()) removeDragon(d);
   for (const P of ctx.players || []) { removeBeing(P.being); if (P.world && P.a) P.world.remove(P.a); }
   for (const g of (H.ghosts ? H.ghosts.values() : [])) removeGhost(g);

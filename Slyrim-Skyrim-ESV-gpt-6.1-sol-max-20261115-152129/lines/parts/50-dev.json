@@ -158,7 +158,7 @@
   "dev.about.f_online": "Online",
   "dev.about.v_online": "52in1 sessions: parallel, ghost, shared-world co-op and versus (session protocol 1, client 1.4.0)",
   "dev.about.f_testing": "Testing",
-  "dev.about.v_testing": "Headless Chromium through Playwright 1.63.0 (WebGL 2 on SwiftShader); Node unit tests; a scripted full playthrough with an autopilot; the 52in1 session harness in every online mode; the catalogue checker; emulated pads and phone profiles; OfflineAudioContext checks",
+  "dev.about.v_testing": "Headless Chromium through Playwright 1.63.0 (WebGL 2 on SwiftShader); Node unit tests; a scripted full playthrough with an autopilot; the 52in1 session harness in every online mode; the catalogue checker; emulated pads and phone profiles; OfflineAudioContext checks; screenshots and filmstrips at 1920x1080 looked at by eye",
   "dev.about.f_research": "Research",
   "dev.about.v_research": "The plan's research (the my-3D2dge 0.101.0 handoff, the 52in1 session, catalogue and languages pages, a single-file packaging test), plus reading the engine source and API for every system used",
   "dev.about.f_environment": "Environment",

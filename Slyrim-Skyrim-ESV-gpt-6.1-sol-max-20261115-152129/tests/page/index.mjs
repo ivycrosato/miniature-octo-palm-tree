@@ -235,7 +235,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 8. two emulated pads: same screen and split screen; the Dragon Hunt challenge ends with a time
-  for (const mode of ['Same Screen Co-op', 'Split Screen Co-op']) await step(t, mode, async () => {
+  for (const mode of ['Same Screen Co-op', 'Same Screen Versus', 'Split Screen Co-op']) await step(t, mode, async () => {
     const P = await open('?test=1&backend=webgl', { pad: true, context: { viewport: { width: 1280, height: 720 } } }); const { page } = P;
     const ptap = async (i, b) => { await page.evaluate(([i, b]) => window.__pad.press(i, b, true), [i, b]); await adv(page, .1); await page.evaluate(([i, b]) => window.__pad.press(i, b, false), [i, b]); await adv(page, .1); };
     try {
@@ -249,6 +249,9 @@ export async function run(t) {
       await adv(page, 4); const y0 = await page.evaluate(() => window.__slyrim.ctx().players[1].a.y);
       await page.evaluate(() => window.__pad.axis(1, 1, -1)); await adv(page, 1.5); await page.evaluate(() => window.__pad.axis(1, 1, 0));
       t.ok(Math.abs(await page.evaluate(() => window.__slyrim.ctx().players[1].a.y) - y0) > 16, mode + ': player 2 moves on pad 2');
+      // rivals hit each other in versus; partners do not in co-op
+      const hit = await page.evaluate(() => { const c = window.__slyrim.ctx(), [A, B] = c.players, hp0 = B.S.hp; B.teleport(A.a.x + Math.cos(A.yaw) * 20, A.a.y + Math.sin(A.yaw) * 20); B.being.st.frozen = 0; A.a.facing = A.yaw; window.__slyrim.advance(.1); return { hp0, touch: window.__slyrim.cmd('canTouch', 0, 1) }; });
+      t.eq(hit.touch, /Versus/.test(mode), mode + (/Versus/.test(mode) ? ': rivals can hit each other' : ': partners cannot hit each other'));
       await page.screenshot({ path: join(OUT, mode.replace(/ /g, '_') + '.png') });
       t.eq(P.errors.filter(ok), [], mode + ': no console errors');
     } finally { await P.done(); }

@@ -5,13 +5,13 @@ import { bus } from '../core/bus.js';
 import { tune } from '../core/tune.js';
 import { get, all } from '../core/registry.js';
 import { used } from '../core/text.js';
-import { posOf } from '../combat/core.js';
+import { posOf, canTouch } from '../combat/core.js';
 import { addItem, findItem, equip, count } from '../rpg/inventory.js';
 import { setSkill, charXp, levelNeed, perkStatus, takePerk, allPerks } from '../rpg/character.js';
 import { openLevelUp } from '../ui/hub.js';
 import { stationScreen } from '../ui/stations.js';
 import { openDev } from './devtools.js';
-import { makeDragon } from '../actors/dragon.js';
+import { makeDragon, dragons, pinDragon } from '../actors/dragon.js';
 import { spawn } from '../actors/ai.js';
 import { PLACE, U } from '../world/hrimdal.js';
 import { things } from '../world/interact.js';
@@ -31,6 +31,10 @@ export function setupTestApi() {
   command('levelup', () => { const st = ctx.state; charXp(st, levelNeed(st.level) - st.xp + 1); const s = openLevelUp(); if (s) s.pick(); return st.level; });
   command('perk', () => { const st = ctx.state; const p = allPerks().find(x => perkStatus(st, x.id) === 'ok'); return p ? takePerk(st, p.id) : false; });
   command('dev', () => openDev());
+  command('canTouch', (i, j) => { const P = ctx.players; return canTouch(P[i].being, P[j].being); });
+  command('talkTo', id => { const b = ctx.people && ctx.people.get(id); if (b) bus.emit('talk', { being: b, npc: id, player: ctx.player }); return !!b; });
+  command('fireAt', (x, y) => bus.emit('fire_at', { x, y, z: 0, src: ctx.player && ctx.player.being }));
+  command('pin', id => { const d = dragons.find(x => x.id === id); if (d) pinDragon(d, ctx.player && ctx.player.being); return !!d; });
   command('dragon', (kind = 'red', d = 30) => { const P = ctx.player, x = P.a.x + Math.cos(P.yaw) * d * M, y = P.a.y + Math.sin(P.yaw) * d * M; const D = makeDragon(kind, x, y, { world: ctx.worldId, cx: P.a.x, cy: P.a.y, id: 'test_dragon', z: P.a.z + 14 * M }); D.st2 = 'hover'; return D; });
   /** a station's screen, worked through its rows: the forge makes an item; the alchemy table mixes ingredients */
   command('craft', (station, what) => {

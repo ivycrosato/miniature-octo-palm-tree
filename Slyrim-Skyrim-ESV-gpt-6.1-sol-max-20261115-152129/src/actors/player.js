@@ -331,7 +331,10 @@ export function drawFirstPerson(P, world) {
   const glowIn = col => (x, y, z) => { pen.glow(x + 1.5, y, z + 1, 1.6 + Math.sin(t * 12) * .3, col).halo(x + 1.5, y, z + 1, 4, col); };
   const itemFor = (h, side) => {
     if (h.kind === 'weapon') { const col = (h.def.mat === 'bronze' ? '#c08a46' : h.def.mat === 'steel' ? '#c6d0dc' : h.def.mat === 'bone' ? '#e8e0c8' : '#9aa4b2'); return blade(h.def.type === 'dagger' ? 6 : h.def.type === 'greatsword' ? 15 : 11, h.def.type === 'axe' || h.def.type === 'mace' ? 2.4 : 1.2, col); }
-    if (h.kind === 'shield') return (x, y, z, s) => { const up = P.being.blocking ? 4 : 0; pen.at(0, 0, 0).box(x + 2, y + s * 1, z + 2 + up, 1, 9, 10, h.def.mat === 'hide' ? '#7a5a3a' : '#7c8694').ball(x + 2.6, y + s, z + 2 + up, .6, 1.4, 1.4, '#c6d0dc'); };
+    if (h.kind === 'shield') return (x, y, z, s) => {   // (held low at the edge of the view; raised to the middle in a block)
+      const b = P.being.blocking, cx = x + (b ? 3 : 1), cy = y + s * (b ? .5 : 3.5), cz = z + (b ? 5 : -3), w = b ? 9 : 6.5, hh = b ? 10 : 7.5, col = h.def.mat === 'hide' ? '#8a6a48' : '#8c96a4', rim = h.def.mat === 'hide' ? '#5a4030' : '#c6d0dc';
+      pen.at(0, 0, 0).box(cx, cy, cz, 1, w, hh, col).box(cx - .3, cy, cz + hh / 2, 1.2, w + .6, .6, rim).box(cx - .3, cy, cz - hh / 2, 1.2, w + .6, .6, rim).ball(cx + .6, cy, cz, .6, 1.3, 1.3, '#c6d0dc');
+    };
     if (h.kind === 'spell') return glowIn(h.spell === 'fire_bolt' ? '#ffb347' : h.spell === 'frost_spray' ? '#9fe0ff' : h.spell === 'heal' ? '#f4e6a0' : '#b8a8ff');
     if (h.kind === 'torch') return (x, y, z) => { pen.tube(x, y, z, x + 3, y, z + 9, .8, '#6a4a2a').glow(x + 3, y, z + 10, 1.8, '#f2b23c').halo(x + 3, y, z + 10, 5, '#e0602a'); };
     if (h.kind === 'bow') return (x, y, z, s) => { const d = P.R.draw; pen.at(0, 0, 0).tube(x + 6, y - 5, z + 12, x + 7, y - 5, z, .8, '#7a4e2a').tube(x + 7, y - 5, z, x + 6, y - 5, z - 12, .8, '#7a4e2a').tube(x + 6, y - 5, z + 12, x + 6 - d * 6, y - 1, z, .2, '#e8e0d0').tube(x + 6 - d * 6, y - 1, z, x + 6, y - 5, z - 12, .2, '#e8e0d0'); if (d > .05) pen.tube(x + 6 - d * 6, y - 1, z, x + 18, y - 5, z, .35, '#8a6a44'); };

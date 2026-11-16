@@ -42,6 +42,8 @@ export class Hud {
   update(info, dt) {
     if (!this.visible) return;
     const covered = !!(window.__slyrimCovered && window.__slyrimCovered()); this.root.style.visibility = covered ? 'hidden' : ''; if (covered) return;
+    // (a screen over the world, such as a dialogue: the tutorial card and the subtitle wait under it)
+    const modal = !!(window.__slyrimScreens && window.__slyrimScreens().length); this.tut.style.visibility = modal ? 'hidden' : ''; this.sub.style.visibility = modal ? 'hidden' : '';
     this.drawCompass(info);
     this.setText(this.quest, info.quest || '');
     if (info.enemy) { this.enemy.style.display = ''; this.enemy.className = 'enemy' + (info.enemy.boss ? ' boss' : ''); this.setText(this.enemyName, info.enemy.name); this.enemyFill.style.width = Math.max(0, info.enemy.hp / info.enemy.max * 100) + '%'; this.enemyFill.style.background = 'linear-gradient(#ff6a5a,#a82a24)'; }

@@ -88,7 +88,7 @@ export function hurt(t, hit, src) {
 export function kill(t, src, hit) {
   if (!t.alive) return;
   t.alive = false; t.hp = 0; t.deadT = 0; t.blocking = false;
-  if (t.a && t.a.setSolid) t.a.setSolid(false);
+  if (t.a && t.a.setSolid && !t.gone) t.a.setSolid(false);
   if (t.onDie) t.onDie(src, hit);
   bus.emit('kill', { target: t, src, kind: hit && hit.kind });
 }
