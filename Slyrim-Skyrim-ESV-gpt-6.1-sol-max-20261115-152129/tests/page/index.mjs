@@ -1,6 +1,7 @@
 // page: the built game in headless Chromium from file:// (plan Part R.2), ?test=1&backend=webgl. Each part opens its
 // own page; the game's state is read through window.__slyrim, never the clock.
 import { open, until, OUT } from '../helpers/browser.mjs';
+import { readPng, stats } from '../helpers/png.mjs';
 import { devices } from 'playwright';
 import { join } from 'node:path';
 
@@ -271,6 +272,51 @@ export async function run(t) {
       t.ok(await page.evaluate(() => +localStorage.getItem('slyrim:best:dragon_hunt') > 0), 'the best time is kept');
       await page.evaluate(() => window.__slyrim.tune.reset());
       t.eq(P.errors.filter(ok), [], 'challenge: no console errors');
+    } finally { await P.done(); }
+  });
+  // 13. the look: timber walls lit by day (they once drew black), the HUD's quest line, compass and enemy bar, the pause
+  // menu's ten rows without a scroll
+  await step(t, 'look', async () => {
+    const P = await open('?test=1&backend=webgl&start=play', { context: { viewport: { width: 960, height: 540 } } }); const { page } = P;
+    try {
+      await playUp(page); await adv(page, 1);
+      const hud = await page.evaluate(() => ({ quest: document.querySelector('.sly.hud .quest').textContent, marks: window.__slyrim.ctx().questMarkers().length }));
+      t.ok(hud.quest.length > 3 && hud.marks > 0, 'the HUD shows the tracked quest\'s objective and its marker exists', JSON.stringify(hud));
+      await front(page, 'wolf', 2.2); await page.evaluate(() => { const P = window.__slyrim.ctx().player; P.sheathed = false; P.refreshGear(); });
+      for (let i = 0; i < 6; i++) await page.evaluate(() => { window.__slyrim.input.tap('attack'); window.__slyrim.advance(.4); });
+      const foe = await page.evaluate(() => { const e = document.querySelector('.sly.hud .enemy'); return e.style.display !== 'none' ? e.textContent : ''; });
+      t.ok(/Wolf/.test(foe), 'the enemy bar shows the foe you hit', foe);
+      // a Pinewater house's back wall at noon, seen square on from 9 m; the part between and below its windows
+      await page.evaluate(() => {
+        const c = window.__slyrim.ctx(), W = c.world, U = 16, pl = c.placeMarks.pinewater.P;
+        c.state.tutorial = new Proxy({}, { get: () => true }); c.state.flags.freezeTime = true; window.__slyrim.cmd('time', 12); window.__slyrim.cmd('weather', 'clear');
+        for (const b of c.beings.filter(b => b.kind === 'enemy')) window.__slyrim.cmd('kill', b.id);
+        window.__slyrim.cmd('place', 'pinewater', 2, 44); c.hud.show(false);
+        const hx = (pl.x + 2) * U, wy = (pl.y + 27) * U, gz = W.ground(hx, (pl.y + 24) * U), cz = gz + 1.6 * U;
+        c.player.override = () => ({ x: hx, y: (pl.y + 36) * U, z: cz, yaw: -Math.PI / 2, pitch: 0, roll: 0, fov: 60 });
+        window.__slyrim.advance(1.5); window.__look = { hx, wy, gz };
+      });
+      await page.waitForTimeout(600);   // (real frames: project() uses the camera the world drew last)
+      const box = await page.evaluate(() => {
+        const c = window.__slyrim.ctx(), W = c.world, U = 16, { hx, wy, gz } = window.__look;
+        const pts = [[-1.3, .7], [1.3, .7], [-1.3, 1.4], [1.3, 1.4]].map(([dx, dz]) => W.project(hx + dx * U, wy, gz + (.3 + dz) * U)).filter(Boolean);
+        if (pts.length < 4) return null;
+        const sx = v => v / c.game.W * innerWidth, sy = v => v / c.game.H * innerHeight;
+        return [Math.round(sx(Math.min(...pts.map(q => q[0])))), Math.round(sy(Math.min(...pts.map(q => q[1])))), Math.round(sx(Math.max(...pts.map(q => q[0])))), Math.round(sy(Math.max(...pts.map(q => q[1]))))];
+      });
+      if (t.ok(box && box[2] - box[0] > 20 && box[3] - box[1] > 6, 'the wall is in the picture', JSON.stringify(box))) {
+        const shot = await page.screenshot({ path: join(OUT, 'look-timber.png') }), st = stats(readPng(shot), box);
+        t.ok(st.black < .2 && st.r > 40 && st.r > st.b, 'a timber wall by day is lit wood, not black', JSON.stringify(st));
+      }
+      await page.evaluate(() => { window.__slyrim.ctx().player.override = null; window.__slyrim.ctx().hud.show(true); });
+      for (const [w, h] of [[1920, 1080], [1280, 720]]) {
+        await page.setViewportSize({ width: w, height: h }); await adv(page, .2);
+        for (let k = 0; k < 8 && !(await page.evaluate(() => !!document.querySelector('.esh-mod button'))); k++) { await page.evaluate(() => { if (window.__game.paused) window.__game.resume(); window.__game.menu(); }); await page.waitForTimeout(400); }
+        const fit = await page.evaluate(() => { const m = document.querySelector('.esh-mod'); return m ? [m.scrollHeight, m.clientHeight, m.querySelectorAll('button').length] : null; });
+        t.ok(fit && fit[2] >= 9 && fit[0] <= fit[1] + 1, 'the pause menu shows every row without a scroll at ' + w + 'x' + h, JSON.stringify(fit));
+        await page.evaluate(() => window.__game.resume()); await page.waitForTimeout(200); await adv(page, .2);
+      }
+      t.eq(P.errors.filter(ok), [], 'look: no console errors');
     } finally { await P.done(); }
   });
 }
