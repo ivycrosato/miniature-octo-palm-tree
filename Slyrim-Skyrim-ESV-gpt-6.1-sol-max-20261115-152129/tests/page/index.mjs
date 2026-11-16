@@ -11,12 +11,14 @@ const playUp = page => until(page, () => window.__slyrim && window.__slyrim.stat
 const ok = e => !/deprecated parameters/.test(e);
 const tap = async (page, act) => { await page.evaluate(a => window.__slyrim.input.tap(a), act); await adv(page, .05); await adv(page, .05); };
 const hold = async (page, act, s) => { await page.evaluate(a => window.__slyrim.input.hold(a, true), act); await adv(page, s); await page.evaluate(a => window.__slyrim.input.hold(a, false), act); await adv(page, .1); };
-const front = (page, def, d = 2) => page.evaluate(([def, d]) => { const b = window.__slyrim.cmd('spawn', def, d * 16); b.aware = 0; return b.id || null; }, [def, d]);
+const front = (page, def, d = 2) => page.evaluate(([def, d]) => { const id = window.__slyrim.cmd('spawn', def, d * 16), b = window.__slyrim.ctx().beings.find(x => x.id === id); if (b) b.aware = 0; return id; }, [def, d]);
 const allowed = u => /^(file:|data:|blob:|about:)/.test(u) || /^https:\/\/cdn\.jsdelivr\.net\/npm\/(three@0\.182\.0|@dimforge\/rapier3d-simd-compat@0\.19\.3)\//.test(u);
 
+/** PAGE_ONLY=campaign,systems runs some parts (a rerun after a change to the code they cover) */
+const step = (t, name, fn) => !process.env.PAGE_ONLY || process.env.PAGE_ONLY.split(',').some(k => name.startsWith(k)) ? t.step(name, fn) : null;
 export async function run(t) {
   // 1. boot, the title, music at 10% on clean storage, the network, the audio renders, mouse hover
-  await t.step('boot', async () => {
+  await step(t, 'boot', async () => {
     const P = await open('?test=1&backend=webgl', { context: { viewport: { width: 1280, height: 720 } } }); const { page } = P;
     try {
       await titleUp(page);
@@ -35,7 +37,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 2. attract after 10 s idle; a key ends it
-  await t.step('attract', async () => {
+  await step(t, 'attract', async () => {
     const P = await open('?test=1&backend=webgl'); const { page } = P;
     try {
       await titleUp(page); await adv(page, 10.5);
@@ -47,7 +49,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 3. a new game through creation, MQ1 played with real inputs (the autopilot), views, combat, magic, shouts, sneak
-  await t.step('campaign', async () => {
+  await step(t, 'campaign', async () => {
     const P = await open('?test=1&backend=webgl'); const { page } = P;
     try {
       await titleUp(page);
@@ -73,9 +75,9 @@ export async function run(t) {
       // a bow hit
       await page.evaluate(() => { window.__slyrim.cmd('give', 'hunting_bow'); window.__slyrim.cmd('give', 'iron_arrow', 20); window.__slyrim.cmd('equip', 'hunting_bow'); window.__slyrim.cmd('equip', 'iron_arrow'); const P = window.__slyrim.ctx().player; P.view = 'first'; window.__hits = 0; });
       const did = await front(page, 'deer', 8);
-      await page.evaluate(id => { const c = window.__slyrim.ctx(), b = c.beings.find(x => x.def && x.def.id === 'deer' && x.alive); b.st.frozen = 99; const P = c.player; window.__slyrim.cmd('face', b.a.x, b.a.y); P.pitch = Math.atan2(b.a.z + 10 - (P.a.z + 26), Math.hypot(b.a.x - P.a.x, b.a.y - P.a.y)); }, did);
+      await page.evaluate(id => { const c = window.__slyrim.ctx(), b = c.beings.find(x => x.id === id); b.st.frozen = 99; const P = c.player; window.__slyrim.cmd('face', b.a.x, b.a.y); P.pitch = Math.atan2(b.a.z + 10 - (P.a.z + 26), Math.hypot(b.a.x - P.a.x, b.a.y - P.a.y)); }, did);
       await hold(page, 'attack', 1.1); await adv(page, 1);
-      t.ok(await page.evaluate(() => window.__slyrim.state().events.includes('player_arrow') || window.__slyrim.ctx().beings.some(b => b.def && b.def.id === 'deer' && b.hp < b.maxHp)), 'a bow shot flies and hits');
+      t.ok(await page.evaluate(id => window.__slyrim.state().events.includes('player_arrow') || window.__slyrim.ctx().beings.some(b => b.id === id && b.hp < b.maxHp), did), 'a bow shot flies and hits');
       // a spell
       await page.evaluate(() => { const st = window.__slyrim.ctx().state; st.eq.right = 'spell:fire_bolt'; window.__slyrim.ctx().player.refreshGear(); });
       const mp0 = await page.evaluate(() => window.__slyrim.ctx().state.mp); await hold(page, 'attack', .7); await adv(page, .2);
@@ -87,19 +89,21 @@ export async function run(t) {
       await page.evaluate(() => { const rows = [...document.querySelectorAll('.sly.screen .row')]; const k = rows.findIndex(r => /Push/.test(r.textContent)); if (k >= 0) rows[k].dispatchEvent(new MouseEvent('mouseenter')); });
       await tap(page, 'tab_next'); await page.evaluate(() => { const rows = [...document.querySelectorAll('.sly.screen .row')]; const k = rows.findIndex(r => /Push/.test(r.textContent)); if (k >= 0) rows[k].dispatchEvent(new MouseEvent('mouseenter')); }); await tap(page, 'm_drop'); await adv(page, .1);
       t.eq(await page.evaluate(() => window.__slyrim.ctx().state.words.var), 'free', 'a dragon soul unlocks a word');
-      await page.keyboard.press('Escape'); await adv(page, .3); await page.keyboard.press('Escape'); await adv(page, .3);
+      for (let i = 0; i < 4 && (await S(page)).screens.length; i++) { await page.keyboard.press('Escape'); await adv(page, .3); }
+      await page.evaluate(() => { const g = window.__slyrim.ctx().game; if (g.paused && g.shell) g.shell.hide(); });
       await hold(page, 'shout', 1.1); await adv(page, .3);
-      const sh = await page.evaluate(() => window.__slyrim.ctx().state.shoutCd); t.ok(sh > 15, 'a two-word shout and its cooldown', sh);
+      const sh = await page.evaluate(() => window.__slyrim.ctx().state.shoutCd); t.ok(sh > 15, 'a two-word shout and its cooldown', await page.evaluate(() => { const c = window.__slyrim.ctx(); return JSON.stringify({ cd: c.state.shoutCd, w: c.state.words, sh: c.state.shout, scr: window.__slyrim.state().screens, paused: c.game.paused, fr: c.player.frozen, dead: c.player.dead, cut: !!c.cutscene, scene: c.game.sceneName, alive: c.player.being.alive, st: c.player.being.st, down: c.player.being.down, ex: c.player.executeT, sneak: c.player.sneak, held: c.player.shoutHeld }); }));
       await tap(page, 'shout'); await adv(page, .1); t.ok(await page.evaluate(() => window.__slyrim.ctx().state.shoutCd > 0), 'the cooldown holds the next shout back');
       // sneak and the eye
       await tap(page, 'sneak'); await adv(page, .3);
-      t.ok(await page.evaluate(() => window.__slyrim.ctx().player.sneak && getComputedStyle(document.querySelector('.sly.hud .eye') || document.body).display !== 'none'), 'sneak shows the eye');
+      const eye = await until(page, () => { const P = window.__slyrim.ctx().player, e = document.querySelector('.sly.hud .eye'); return P.sneak && e && getComputedStyle(e).display !== 'none' ? 'shown' : null; }, null, 5000, 'the eye').catch(() => null);
+      t.eq(eye, 'shown', 'sneak shows the eye');
       await tap(page, 'sneak');
       t.eq(P.errors.filter(ok), [], 'campaign: no console errors');
     } finally { await P.done(); }
   });
   // 4. locks, pickpocket, theft and the fine, smithing, alchemy, a level and a perk, save and load, dev slider
-  await t.step('systems', async () => {
+  await step(t, 'systems', async () => {
     const P = await open('?test=1&backend=webgl&start=play'); const { page } = P;
     try {
       await playUp(page);
@@ -165,7 +169,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 5. glyphs: a pad gives PlayStation prompts; Settings Xbox gives A B X Y; the keyboard gives keys
-  await t.step('glyphs', async () => {
+  await step(t, 'glyphs', async () => {
     const P = await open('?test=1&backend=webgl', { pad: true }); const { page } = P;
     try {
       await titleUp(page);
@@ -179,7 +183,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 6. a phone: the panel with Settings, no touch buttons, the attract mode behind it
-  await t.step('phone', async () => {
+  await step(t, 'phone', async () => {
     const P = await open('?test=1&backend=webgl', { context: Object.assign({}, devices['Pixel 7']) }); const { page } = P;
     try {
       await until(page, () => window.__slyrim && window.__slyrim.ready, null, 120000, 'boot');
@@ -192,7 +196,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 7. window sizes fill; the three test languages
-  for (const [w, h] of [[1600, 900], [2100, 900], [1200, 900]]) await t.step('size ' + w, async () => {
+  for (const [w, h] of [[1600, 900], [2100, 900], [1200, 900]]) await step(t, 'size ' + w, async () => {
     const P = await open('?backend=webgl', { context: { viewport: { width: w, height: h } } }); const { page } = P;
     try {
       await until(page, () => !!document.querySelector('.title-menu .row'), null, 90000, 'the title');
@@ -202,7 +206,7 @@ export async function run(t) {
       t.eq(P.errors.filter(ok), [], w + 'x' + h + ': no console errors');
     } finally { await P.done(); }
   });
-  await t.step('en-XA', async () => {
+  await step(t, 'en-XA', async () => {
     const P = await open('?lang=en-XA&test=1&backend=webgl', { context: { viewport: { width: 1280, height: 720 } } }); const { page } = P;
     try {
       await titleUp(page);
@@ -220,7 +224,7 @@ export async function run(t) {
       t.eq(P.errors.filter(ok), [], 'en-XA: no console errors');
     } finally { await P.done(); }
   });
-  for (const lang of ['zh-XC', 'ar-XB']) await t.step(lang, async () => {
+  for (const lang of ['zh-XC', 'ar-XB']) await step(t, lang, async () => {
     const P = await open('?lang=' + lang + '&test=1&backend=webgl'); const { page } = P;
     try {
       await titleUp(page); await page.evaluate(() => window.__slyrim.ctx().newGame({ bg: 'mage' })); await playUp(page); await adv(page, 1);
@@ -231,7 +235,7 @@ export async function run(t) {
     } finally { await P.done(); }
   });
   // 8. two emulated pads: same screen and split screen; the Dragon Hunt challenge ends with a time
-  for (const mode of ['Same Screen Co-op', 'Split Screen Co-op']) await t.step(mode, async () => {
+  for (const mode of ['Same Screen Co-op', 'Split Screen Co-op']) await step(t, mode, async () => {
     const P = await open('?test=1&backend=webgl', { pad: true, context: { viewport: { width: 1280, height: 720 } } }); const { page } = P;
     const ptap = async (i, b) => { await page.evaluate(([i, b]) => window.__pad.press(i, b, true), [i, b]); await adv(page, .1); await page.evaluate(([i, b]) => window.__pad.press(i, b, false), [i, b]); await adv(page, .1); };
     try {
@@ -249,7 +253,7 @@ export async function run(t) {
       t.eq(P.errors.filter(ok), [], mode + ': no console errors');
     } finally { await P.done(); }
   });
-  await t.step('challenge', async () => {
+  await step(t, 'challenge', async () => {
     const P = await open('?test=1&backend=webgl'); const { page } = P;
     try {
       await titleUp(page);

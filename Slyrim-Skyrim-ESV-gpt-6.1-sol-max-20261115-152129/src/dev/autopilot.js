@@ -22,7 +22,16 @@ const log = s => { if (AP.last === s) return; AP.last = s; AP.log.push(Math.roun
 /** turn it on (o.fast: the tuning and cheats that speed fights up) */
 export function autoplay(on, o = {}) {
   AP.on = !!on; AP.t = 0; AP.want = null; AP.log.length = 0; AP.order = o.order || null;
-  if (on && o.fast !== false) { const st = S(); Object.assign(st.cheats, { god: true, picks: true, noshoutcd: true, mp: true, sp: true, souls: false }); tune.set('enemy_health', .1); tune.set('dragon_health', .1); tune.set('player_damage', 5); tune.set('dragon_land_every', 5); }
+  const st = S(), FAST = { cheats: { god: true, picks: true, noshoutcd: true, mp: true, sp: true }, tune: { enemy_health: .1, dragon_health: .1, player_damage: 5, dragon_land_every: 5 } };
+  if (on && o.fast !== false && !AP.saved) {
+    AP.saved = { cheats: Object.fromEntries(Object.keys(FAST.cheats).map(k => [k, st.cheats[k]])), tune: Object.fromEntries(Object.keys(FAST.tune).map(k => [k, tune.get(k)])) };
+    Object.assign(st.cheats, FAST.cheats); for (const [k, v] of Object.entries(FAST.tune)) tune.set(k, v);
+  }
+  if (!on && AP.saved) {   // (off: the cheats and sliders it changed go back as they were)
+    for (const [k, v] of Object.entries(AP.saved.cheats)) { if (v) st.cheats[k] = v; else delete st.cheats[k]; }
+    for (const [k, v] of Object.entries(AP.saved.tune)) tune.set(k, v); AP.saved = null;
+    for (const a of ['attack', 'block', 'right', 'shout']) I().hold(a, false);
+  }
   bus.emit('autoplay', { on: AP.on });
 }
 /* ---- the moves ---- */

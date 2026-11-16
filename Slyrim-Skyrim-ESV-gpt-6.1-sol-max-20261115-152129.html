@@ -31041,13 +31041,25 @@ function autoplay(on, o = {}) {
   AP.want = null;
   AP.log.length = 0;
   AP.order = o.order || null;
-  if (on && o.fast !== false) {
-    const st = S4();
-    Object.assign(st.cheats, { god: true, picks: true, noshoutcd: true, mp: true, sp: true, souls: false });
-    tune.set("enemy_health", 0.1);
-    tune.set("dragon_health", 0.1);
-    tune.set("player_damage", 5);
-    tune.set("dragon_land_every", 5);
+  const st = S4(), FAST = { cheats: { god: true, picks: true, noshoutcd: true, mp: true, sp: true }, tune: { enemy_health: 0.1, dragon_health: 0.1, player_damage: 5, dragon_land_every: 5 } };
+  if (on && o.fast !== false && !AP.saved) {
+    AP.saved = { cheats: Object.fromEntries(Object.keys(FAST.cheats).map((k) => [k, st.cheats[k]])), tune: Object.fromEntries(Object.keys(FAST.tune).map((k) => [k, tune.get(k)])) };
+    Object.assign(st.cheats, FAST.cheats);
+    for (const [k, v] of Object.entries(FAST.tune))
+      tune.set(k, v);
+  }
+  if (!on && AP.saved) {
+    for (const [k, v] of Object.entries(AP.saved.cheats)) {
+      if (v)
+        st.cheats[k] = v;
+      else
+        delete st.cheats[k];
+    }
+    for (const [k, v] of Object.entries(AP.saved.tune))
+      tune.set(k, v);
+    AP.saved = null;
+    for (const a of ["attack", "block", "right", "shout"])
+      I().hold(a, false);
   }
   bus.emit("autoplay", { on: AP.on });
 }
@@ -32201,6 +32213,7 @@ init_ai();
 init_hrimdal();
 init_interact();
 var commands = {};
+var spawned = 0;
 function command(name, fn) {
   commands[name] = fn;
 }
@@ -32295,7 +32308,7 @@ function setupTestApi() {
   command("setSkill", (k, v) => setSkill(ctx.state, k, v));
   command("spawn", (id, dx = 0, dy = 0, o = {}) => {
     const P = ctx.player, { a, yaw: f } = P;
-    return spawn(id, a.x + Math.cos(f) * (dx || 6 * M) - Math.sin(f) * dy, a.y + Math.sin(f) * (dx || 6 * M) + Math.cos(f) * dy, Object.assign({ facing: f + Math.PI }, o)).id;
+    return spawn(id, a.x + Math.cos(f) * (dx || 6 * M) - Math.sin(f) * dy, a.y + Math.sin(f) * (dx || 6 * M) + Math.cos(f) * dy, Object.assign({ facing: f + Math.PI, id: "spawn_" + ++spawned }, o)).id;
   });
   command("time", (h) => {
     const S = ctx.state;

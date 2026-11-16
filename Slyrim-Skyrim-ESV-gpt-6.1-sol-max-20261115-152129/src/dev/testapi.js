@@ -17,6 +17,7 @@ import { PLACE, U } from '../world/hrimdal.js';
 import { things } from '../world/interact.js';
 import { autoplay, AP, setupAutopilot } from './autopilot.js';
 export const commands = {};
+let spawned = 0;
 /** a dev command: also used by Dev Tools and the autopilot */
 export function command(name, fn) { commands[name] = fn; }
 export function setupTestApi() {
@@ -41,7 +42,7 @@ export function setupTestApi() {
   command('give', (id, n = 1) => { if (id === 'gold') ctx.state.gold += n; else addItem(ctx.state, id, n); });
   command('equip', id => { const it = findItem(ctx.state, id); if (it) equip(ctx.state, it.uid); if (ctx.player) ctx.player.refreshGear(); });
   command('setSkill', (k, v) => setSkill(ctx.state, k, v));
-  command('spawn', (id, dx = 0, dy = 0, o = {}) => { const P = ctx.player, a = P.a, f = P.yaw; return spawn(id, a.x + Math.cos(f) * (dx || 6 * M) - Math.sin(f) * dy, a.y + Math.sin(f) * (dx || 6 * M) + Math.cos(f) * dy, Object.assign({ facing: f + Math.PI }, o)).id; });
+  command('spawn', (id, dx = 0, dy = 0, o = {}) => { const P = ctx.player, a = P.a, f = P.yaw; return spawn(id, a.x + Math.cos(f) * (dx || 6 * M) - Math.sin(f) * dy, a.y + Math.sin(f) * (dx || 6 * M) + Math.cos(f) * dy, Object.assign({ facing: f + Math.PI, id: 'spawn_' + (++spawned) }, o)).id; });
   command('time', h => { const S = ctx.state; S.time = Math.floor(S.time / 1440) * 1440 + h * 60; });
   command('weather', k => { const w = ctx.state.weather; w.from = k; w.kind = k; w.blend = 1; w.next = ctx.state.time + 600; });
   command('cheat', (k, on = true) => { ctx.state.cheats[k] = on; });
