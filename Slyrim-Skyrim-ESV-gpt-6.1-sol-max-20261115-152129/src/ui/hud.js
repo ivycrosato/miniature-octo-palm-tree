@@ -30,7 +30,13 @@ export class Hud {
   show(on) { this.visible = on; this.root.style.display = on ? '' : 'none'; }
   destroy() { this.root.remove(); }
   /** a message at the top left (a queue of four) */
-  msg(text, cls) { const d = el('div', cls || '', this.msgs); d.textContent = text; this.list.push({ d, t: 4.5 }); while (this.list.length > 4) this.list.shift().d.remove(); }
+  /** a line at the top left (a queue of 4); a key replaces the line with the same key (one "Skill increase: Guard 29.",
+   *  not four in a row) */
+  msg(text, cls, key) {
+    const old = key ? this.list.find(m => m.key === key) : null;
+    if (old) { old.d.textContent = text; old.t = 4.5; old.d.style.opacity = ''; this.msgs.appendChild(old.d); this.list.splice(this.list.indexOf(old), 1); this.list.push(old); return; }
+    const d = el('div', cls || '', this.msgs); d.textContent = text; this.list.push({ d, t: 4.5, key }); while (this.list.length > 4) this.list.shift().d.remove();
+  }
   /** the centre banner for 2.5 s: discoveries, level ups, a dragon soul */
   banner(title, sub) { this.bannerEl.textContent = title; if (sub) { const s = el('small', '', this.bannerEl); s.textContent = sub; } this.bannerEl.style.opacity = 1; this.bannerT = 2.5; }
   tutorial(title, text, t = 7) { this.tut.hidden = false; this.tut.textContent = ''; const b = el('b', '', this.tut); b.textContent = title; const p = el('div', '', this.tut); p.textContent = text; this.tutT = t; }

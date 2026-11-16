@@ -13,12 +13,14 @@ import { onDraw } from '../modes/play.js';
 
 const ROWS = [['bg', ['warrior', 'mage', 'thief']], ['body', [0, 1]], ['skin', SKINS.map((_, i) => i)], ['hair', HAIR_STYLES.map((_, i) => i)], ['hairColor', HAIRS.map((_, i) => i)], ['cloth', CLOTHS.map((_, i) => i)]];
 let actor = null, look = null, bg = 'warrior', spot = null;
+const SHIFT = -.32; // radians the look turns from the character, so the character stands right of the panel
 const label = (k, v) => k === 'bg' ? T('bg.' + v) : k === 'body' ? T('create.body.' + (v ? 'b' : 'a')) : k === 'hair' ? T('create.hair.' + HAIR_STYLES[v]) : T('create.n', { n: v + 1 });
 export const create = {
   enter() {
     const W = ctx.world = ctx.worlds.hrimdal; W.onDraw = onDraw; this.t = 0;
     look = { body: 0, skin: 1, hair: 0, hairColor: 2, cloth: 0 }; bg = 'warrior';
     const p = PLACE.eastgate_pass; spot = { x: (p.x - 6) * U, y: (p.y - 4) * U };
+    spot.base = Math.atan2(spot.y - (p.y - 6) * U, spot.x - (p.x - 4) * U) + .5; // away from the fire at (-4, -6), turned so the fire shows beside the character
     this.refresh();
     kit.closeAll();
     kit.open({ id: 'create', cls: 'clear', build(s) {
@@ -41,7 +43,7 @@ export const create = {
   refresh() {
     const W = ctx.world, st = newState({ bg, look }), rig = dressRig(makeRig(look), st);
     if (actor) W.remove(actor);
-    actor = W.hero({ x: spot.x, y: spot.y, rig, facing: Math.PI * .75 }); actor.facing = Math.PI * .75; actor.anim = { stance: 'ready' };
+    actor = W.hero({ x: spot.x, y: spot.y, rig, facing: spot.base - .55 }); actor.facing = spot.base - .55; actor.anim = { stance: null }; // a three-quarter view, weapons away, so the face and clothes show
   },
   start() {
     const W = ctx.world; if (actor) { W.remove(actor); actor = null; }
@@ -49,10 +51,13 @@ export const create = {
   },
   exit() { if (actor) { ctx.world.remove(actor); actor = null; } kit.closeAll(); },
   update(dt) {
-    this.t += dt; kit.step(dt); const W = ctx.world, a = this.t * .35, d = 3.2 * M;
+    this.t += dt; kit.step(dt); const W = ctx.world, d = 4 * M;
     const I = ctx.game.input; if (I.padAim) this.turn = (this.turn || 0) + I.padAim[0] * dt * 2;
-    const ang = a + (this.turn || 0), z = W.ground(spot.x, spot.y) + 1.3 * M;
-    W.camera.fixed = { x: spot.x + Math.cos(ang) * d + 1.2 * M, y: spot.y + Math.sin(ang) * d, z, yaw: Math.atan2(-Math.sin(ang), -Math.cos(ang)), pitch: -.08, roll: 0, fov: 50 };
+    // the camera swings round the side away from the camp fire (so it never passes through the fire), and the look is
+    // turned so the character stands in the right half of the picture, clear of the menu panel on the left
+    const ang = spot.base + Math.sin(this.t * .3) * .75 + (this.turn || 0), z = W.ground(spot.x, spot.y) + 1.25 * M;
+    const cx = spot.x + Math.cos(ang) * d, cy = spot.y + Math.sin(ang) * d, wide = innerWidth / Math.max(1, innerHeight) > 1.2;
+    W.camera.fixed = { x: cx, y: cy, z, yaw: Math.atan2(spot.y - cy, spot.x - cx) + (wide ? SHIFT : 0), pitch: -.1, roll: 0, fov: 50 };
     if (W.scatter) W.scatter.stream(spot.x, spot.y, 2);
     W.step(dt);
   },

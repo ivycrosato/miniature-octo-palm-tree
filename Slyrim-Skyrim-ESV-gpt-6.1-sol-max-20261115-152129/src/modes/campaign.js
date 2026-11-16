@@ -10,6 +10,7 @@ import * as kit from '../ui/kit.js';
 import { PLACE, U } from '../world/hrimdal.js';
 import { removeBeing } from '../combat/core.js';
 import { promptFor } from '../world/interact.js';
+import { campaignHud } from '../ui/compass.js';
 
 export const campaign = {
   hooks: [],   // fn(ev) for 'enter', 'step', 'draw', 'leave': other systems (quests, schedules) hang on
@@ -38,7 +39,7 @@ export const campaign = {
   draw(r) {
     drawWorld(r);
     const P = ctx.player; if (!P || !ctx.hud) return;
-    const info = hudInfo(P); const pr = promptFor(P.focus, P); if (pr && !P.carrying) info.prompt = Object.assign({ keys: [ctx.game.input.label('interact')] }, pr); for (const h of this.hooks) h('hud', info);
+    const info = campaignHud(P, hudInfo(P)); const pr = promptFor(P.focus, P); if (pr && !P.carrying) info.prompt = Object.assign({ keys: [ctx.game.input.label('interact')] }, pr); for (const h of this.hooks) h('hud', info);
     ctx.hud.update(info, ctx.game.dt || 1 / 60);
   }
 };

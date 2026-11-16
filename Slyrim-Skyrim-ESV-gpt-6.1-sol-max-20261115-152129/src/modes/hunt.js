@@ -210,7 +210,11 @@ export function report(timeUp) {
 }
 /** the HUD info for a player */
 function hudFor(P, timeMs, rect = [0, 0, 1, 1], names = true) {
-  const info = hudInfo(P), id = idOf(P.being);
+  const info = hudInfo(P), id = idOf(P.being), D = H.dragon;
+  // the dragon bar and the dragon on the compass; the other players on the compass
+  if (D && !D.gone && (D.puppet ? D.net && D.net.alive : D.alive)) { info.enemy = { name: T(D.name), hp: D.puppet ? D.net.hp * D.maxHp : D.hp, max: D.maxHp, boss: true }; const q = posOf(D); info.markers.push({ x: q.x, y: q.y, kind: 'quest' }); }
+  for (const Q of ctx.players) if (Q !== P && Q.a) info.markers.push({ x: Q.a.x, y: Q.a.y, kind: 'player', color: H.colors[idOf(Q.being)] });
+  for (const g of H.ghosts.values()) if (g.a && g.a.visible) info.markers.push({ x: g.a.x, y: g.a.y, kind: 'player', color: g.color });
   info.corner = [T('round.time', { time: fmt(Math.max(0, LIMIT_MS - timeMs)) }), T('round.glory', { glory: num(H.glory[id] || 0) })];
   if (H.versus) { const best = Object.entries(H.glory).sort((a, b) => b[1] - a[1])[0]; if (best) info.corner.push(T('round.leader', { name: H.names[best[0]] || best[0], glory: num(best[1]) })); }
   info.center = H.hostLeft ? T('round.host_left') : H.count ? String(H.count) : P.dead ? T('round.down') : H.won && H.kind !== 'session' ? T('round.dragon_dead') : '';

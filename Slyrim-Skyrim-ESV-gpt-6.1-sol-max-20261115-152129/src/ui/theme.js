@@ -3,6 +3,10 @@
 export const THEME = { ink: '#e8eef6', paper: 'rgba(11,18,32,.84)', accent: '#8fd8ff', muted: '#9fb4cc', danger: '#ff6b5a', line: '#2f4766', gold: '#f2b23c', good: '#8fe0a8' };
 export const SERIF = 'Georgia, "Times New Roman", serif', SANS = 'system-ui, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif';
 const CSS = `.sly.screen.under .bar-line{visibility:hidden}
+/* the title's logo and menu step back while a screen (About, Help, Challenges) is open over them */
+.sly.screen.under>.logo,.sly.screen.under>.title-menu,.sly.screen.under>.version{visibility:hidden}
+/* the engine's pause menu: its ten rows a little tighter, so they all show without a scroll */
+.esh-mod>.esh-btns{gap:6px}.esh-mod>.esh-btns>button{padding:8px 14px;font-size:14px;min-height:38px}
 
 .sly{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;color:${THEME.ink};font-family:${SANS};font-size:var(--k,clamp(12px,2.6vh,44px));line-height:1.3;z-index:15;overflow:hidden;-webkit-user-select:none;user-select:none}
 .sly *{box-sizing:border-box}

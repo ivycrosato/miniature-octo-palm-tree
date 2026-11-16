@@ -10,7 +10,7 @@ let MAT = null, NIGHT = null;
 /** the kit's one material (made once per page) and its night uniform (0..1: windows glow) */
 export function kitMaterial() {
   if (MAT) return MAT;
-  const T = E.THREE, { attribute, positionWorld, normalWorld, vec3, float, fract, floor, sin, dot, abs, step, mix, select, uniform, max } = E.TSL;
+  const T = E.THREE, { attribute, positionWorld, normalWorld, vec3, float, fract, floor, sin, dot, abs, step, select, uniform, max, min } = E.TSL;
   NIGHT = uniform(0);
   const kind = attribute('kind', 'float'), col = attribute('color', 'vec3'), p = positionWorld, n = normalWorld;
   const hash = q => fract(sin(dot(q, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
@@ -26,11 +26,14 @@ export function kitMaterial() {
   const planks = col.mul(float(.9).add(hash(vec3(floor(select(side, p.y, along).mul(3)), 3, 0)).mul(.18))).mul(float(1).sub(step(fract(select(side, p.y, along).mul(3)), float(.09)).mul(.35)));
   // logs: wide rounded stripes
   const lg = fract(along.mul(2.6)), logs = col.mul(float(.7).add(sin(lg.mul(3.1416)).mul(.38)));
-  const pick = (k, a, b) => select(kind.lessThan(k + .5).and(kind.greaterThan(k - .5)), a, b);
-  const c = pick(1, stone, pick(2, timber, pick(3, turf, pick(4, planks, pick(5, logs, col)))));
+  // each kind's pattern weighted by a 0/1 mask and summed (a chain of nested selects drew timber and planks black on
+  // some GPUs: a pattern's shared parts were set inside another branch)
+  const is = k => float(1).sub(min(abs(kind.sub(k)), float(1)));
+  const w = [1, 2, 3, 4, 5].map(is), rest = float(1).sub(w[0]).sub(w[1]).sub(w[2]).sub(w[3]).sub(w[4]);
+  const c = stone.mul(w[0]).add(timber.mul(w[1])).add(turf.mul(w[2])).add(planks.mul(w[3])).add(logs.mul(w[4])).add(col.mul(rest));
   const mat = new T.MeshLambertNodeMaterial({ side: T.DoubleSide });
   mat.colorNode = c;
-  mat.emissiveNode = pick(6, col.mul(NIGHT.mul(2.4)).add(col.mul(.05)), pick(7, col.mul(1.3), vec3(0, 0, 0)));
+  mat.emissiveNode = col.mul(NIGHT.mul(2.4)).add(col.mul(.05)).mul(is(6)).add(col.mul(1.3).mul(is(7)));
   MAT = mat; return mat;
 }
 export function setKitNight(v) { if (NIGHT) NIGHT.value = v; }

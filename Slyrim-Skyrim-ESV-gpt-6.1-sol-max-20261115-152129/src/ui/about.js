@@ -23,7 +23,7 @@ export function aboutScreen() {
   }, items(s) { return [{ el: kit.row(s.list, T('ui.back')), onPick: () => kit.close(s) }]; },
   scroll: false, onOpen(s) { s.scrollEl.scrollTop = 0; },
   update(dt, s) { const I = s.I; if (I.down('up')) s.scrollEl.scrollTop -= 600 * dt; if (I.down('down')) s.scrollEl.scrollTop += 600 * dt; return false; },
-  actions: [['confirm', 'ui.back', s => kit.close(s)], ['cancel', 'ui.back', s => s.back()]] });
+  actions: [['cancel', 'ui.back', s => s.back()]] });   // (confirm picks the Back row at the end)
 }
 export const HELP = ['move', 'fight', 'magic', 'shout', 'sneak', 'skills', 'craft', 'world', 'together'];
 export function helpScreen() {

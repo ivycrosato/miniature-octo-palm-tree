@@ -85,6 +85,25 @@ export function hudInfo(P) {
   const sh = get('shout', S.shout);
   if (sh) { const free = sh.words.filter(w => S.words[w] === 'free').length; out.shout = { name: T('shout.' + S.shout + '.name'), free, charge: P.shoutCharging ? Math.min(free, P.shoutHeld >= 1 ? 3 : P.shoutHeld >= .5 ? 2 : 1) : 0, cd: S.shoutCd, cdMax: P.shoutCdMax || Math.max(1, S.shoutCd) }; if (S.shoutCd > (P.shoutCdMax || 0)) P.shoutCdMax = S.shoutCd; if (S.shoutCd <= 0) P.shoutCdMax = 0; }
   void right;
+  const foe = foeOf(P); if (foe) out.enemy = { name: T(foe.name), hp: foe.hp, max: foe.maxHp, boss: !!(foe.boss || foe.kind === 'dragon') };
   return out;
+}
+/* the enemy bar (plan Part H.3): the foe a player last hit, or that last hit them, for 10 s; a boss for as long as its
+   fight goes on; a mode can set P.foeFixed (the round's dragon) */
+const FOE_S = 10;
+const playerOf = b => b && (ctx.players || []).find(P => P.being === b);
+bus.on('hit', e => {
+  const t = e.target, s = e.src, now = ctx.game ? ctx.game.real : 0;
+  const Ps = playerOf(s); if (Ps && t !== s && t.alive && t.kind !== 'player') Ps.foe = { b: t, t: now };
+  const Pt = playerOf(t); if (Pt && s && s.alive && s.kind !== 'player' && (!Pt.foe || now - Pt.foe.t > 3 || !Pt.foe.b.alive)) Pt.foe = { b: s, t: now };
+});
+bus.on('boss_start', e => { const P = ctx.player; if (P && e.being) P.foe = { b: e.being, t: ctx.game.real, boss: true }; });
+function foeOf(P) {
+  if (P.foeFixed && P.foeFixed.alive && !P.foeFixed.gone) return P.foeFixed;
+  const f = P.foe; if (!f) return null;
+  const b = f.b, live = b.alive && !b.gone && b.hp > 0 && (!b.world || b.world === ctx.worldId);
+  if (live && (ctx.game.real - f.t < FOE_S || (f.boss && b.ai && b.ai.state === 'combat'))) return b;
+  if (!live || ctx.game.real - f.t >= FOE_S) P.foe = null;
+  return null;
 }
 export { kit };

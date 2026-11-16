@@ -20542,7 +20542,7 @@ var init_hrimdal = __esm(() => {
 function kitMaterial() {
   if (MAT2)
     return MAT2;
-  const T = E.THREE, { attribute, positionWorld, normalWorld, vec3, float, fract, floor, sin, dot, abs, step, mix, select, uniform, max } = E.TSL;
+  const T = E.THREE, { attribute, positionWorld, normalWorld, vec3, float, fract, floor, sin, dot, abs, step, select, uniform, max, min } = E.TSL;
   NIGHT = uniform(0);
   const kind = attribute("kind", "float"), col = attribute("color", "vec3"), p = positionWorld, n = normalWorld;
   const hash = (q) => fract(sin(dot(q, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
@@ -20553,11 +20553,12 @@ function kitMaterial() {
   const turf = col.mul(float(0.75).add(hash(floor(p.mul(6))).mul(0.45)));
   const planks = col.mul(float(0.9).add(hash(vec3(floor(select(side, p.y, along).mul(3)), 3, 0)).mul(0.18))).mul(float(1).sub(step(fract(select(side, p.y, along).mul(3)), float(0.09)).mul(0.35)));
   const lg = fract(along.mul(2.6)), logs = col.mul(float(0.7).add(sin(lg.mul(3.1416)).mul(0.38)));
-  const pick = (k, a, b) => select(kind.lessThan(k + 0.5).and(kind.greaterThan(k - 0.5)), a, b);
-  const c = pick(1, stone, pick(2, timber, pick(3, turf, pick(4, planks, pick(5, logs, col)))));
+  const is = (k) => float(1).sub(min(abs(kind.sub(k)), float(1)));
+  const w = [1, 2, 3, 4, 5].map(is), rest = float(1).sub(w[0]).sub(w[1]).sub(w[2]).sub(w[3]).sub(w[4]);
+  const c = stone.mul(w[0]).add(timber.mul(w[1])).add(turf.mul(w[2])).add(planks.mul(w[3])).add(logs.mul(w[4])).add(col.mul(rest));
   const mat = new T.MeshLambertNodeMaterial({ side: T.DoubleSide });
   mat.colorNode = c;
-  mat.emissiveNode = pick(6, col.mul(NIGHT.mul(2.4)).add(col.mul(0.05)), pick(7, col.mul(1.3), vec3(0, 0, 0)));
+  mat.emissiveNode = col.mul(NIGHT.mul(2.4)).add(col.mul(0.05)).mul(is(6)).add(col.mul(1.3).mul(is(7)));
   MAT2 = mat;
   return mat;
 }
@@ -25772,6 +25773,10 @@ var THEME = { ink: "#e8eef6", paper: "rgba(11,18,32,.84)", accent: "#8fd8ff", mu
 var SERIF = 'Georgia, "Times New Roman", serif';
 var SANS = 'system-ui, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif';
 var CSS = `.sly.screen.under .bar-line{visibility:hidden}
+/* the title's logo and menu step back while a screen (About, Help, Challenges) is open over them */
+.sly.screen.under>.logo,.sly.screen.under>.title-menu,.sly.screen.under>.version{visibility:hidden}
+/* the engine's pause menu: its ten rows a little tighter, so they all show without a scroll */
+.esh-mod>.esh-btns{gap:6px}.esh-mod>.esh-btns>button{padding:8px 14px;font-size:14px;min-height:38px}
 
 .sly{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;color:${THEME.ink};font-family:${SANS};font-size:var(--k,clamp(12px,2.6vh,44px));line-height:1.3;z-index:15;overflow:hidden;-webkit-user-select:none;user-select:none}
 .sly *{box-sizing:border-box}
@@ -26276,7 +26281,39 @@ function hudInfo(P) {
     if (S.shoutCd <= 0)
       P.shoutCdMax = 0;
   }
+  const foe = foeOf(P);
+  if (foe)
+    out.enemy = { name: T(foe.name), hp: foe.hp, max: foe.maxHp, boss: !!(foe.boss || foe.kind === "dragon") };
   return out;
+}
+var FOE_S = 10;
+var playerOf = (b) => b && (ctx.players || []).find((P) => P.being === b);
+bus.on("hit", (e) => {
+  const { target: t, src: s } = e, now = ctx.game ? ctx.game.real : 0;
+  const Ps = playerOf(s);
+  if (Ps && t !== s && t.alive && t.kind !== "player")
+    Ps.foe = { b: t, t: now };
+  const Pt = playerOf(t);
+  if (Pt && s && s.alive && s.kind !== "player" && (!Pt.foe || now - Pt.foe.t > 3 || !Pt.foe.b.alive))
+    Pt.foe = { b: s, t: now };
+});
+bus.on("boss_start", (e) => {
+  const P = ctx.player;
+  if (P && e.being)
+    P.foe = { b: e.being, t: ctx.game.real, boss: true };
+});
+function foeOf(P) {
+  if (P.foeFixed && P.foeFixed.alive && !P.foeFixed.gone)
+    return P.foeFixed;
+  const f = P.foe;
+  if (!f)
+    return null;
+  const b = f.b, live = b.alive && !b.gone && b.hp > 0 && (!b.world || b.world === ctx.worldId);
+  if (live && (ctx.game.real - f.t < FOE_S || f.boss && b.ai && b.ai.state === "combat"))
+    return b;
+  if (!live || ctx.game.real - f.t >= FOE_S)
+    P.foe = null;
+  return null;
 }
 
 // src/ui/hud.js
@@ -26358,10 +26395,20 @@ class Hud {
   destroy() {
     this.root.remove();
   }
-  msg(text, cls) {
+  msg(text, cls, key) {
+    const old = key ? this.list.find((m) => m.key === key) : null;
+    if (old) {
+      old.d.textContent = text;
+      old.t = 4.5;
+      old.d.style.opacity = "";
+      this.msgs.appendChild(old.d);
+      this.list.splice(this.list.indexOf(old), 1);
+      this.list.push(old);
+      return;
+    }
     const d = el2("div", cls || "", this.msgs);
     d.textContent = text;
-    this.list.push({ d, t: 4.5 });
+    this.list.push({ d, t: 4.5, key });
     while (this.list.length > 4)
       this.list.shift().d.remove();
   }
@@ -26650,177 +26697,11 @@ class Hud {
 init_hrimdal();
 init_core();
 init_interact();
-var campaign = {
-  hooks: [],
-  pausable: true,
-  enter(data = {}) {
-    const W = ctx.worlds.hrimdal;
-    if (!ctx.player) {
-      ctx.world = W;
-      ctx.worldId = "hrimdal";
-    }
-    ctx.mode = ctx.mode && ctx.mode.kind === "campaign" ? ctx.mode : { kind: "campaign" };
-    ctx.world.onDraw = onDraw;
-    if (!ctx.player || data.fresh) {
-      const S = ctx.state, at = S.pos ? { x: S.pos[0], y: S.pos[1], z: S.pos[2], facing: S.facing } : startPoint();
-      if (ctx.player) {
-        removeBeing(ctx.player.being);
-        ctx.player.world.remove(ctx.player.a);
-        ctx.player = null;
-      }
-      ctx.goWorld(S.where && S.where !== "hrimdal" ? S.where : "hrimdal", at, { instant: true, noSave: true, noFollower: true });
-      bus.emit("campaign_start", { fresh: !!data.fresh, loaded: !!data.loaded });
-    }
-    if (!ctx.hud)
-      ctx.hud = new Hud(hostEl());
-    ctx.hud.show(true);
-    for (const h of this.hooks)
-      h("enter", data);
-  },
-  exit() {
-    if (ctx.hud)
-      ctx.hud.show(false);
-  },
-  update(dt) {
-    if (step(dt))
-      return;
-    if (ctx.cutscene && ctx.cutscene.update(dt))
-      return;
-    stepTime(dt);
-    stepDiscovery(ctx.player);
-    stepWorld(dt);
-    for (const h of this.hooks)
-      h("step", dt);
-  },
-  draw(r) {
-    drawWorld(r);
-    const P = ctx.player;
-    if (!P || !ctx.hud)
-      return;
-    const info = hudInfo(P);
-    const pr = promptFor(P.focus, P);
-    if (pr && !P.carrying)
-      info.prompt = Object.assign({ keys: [ctx.game.input.label("interact")] }, pr);
-    for (const h of this.hooks)
-      h("hud", info);
-    ctx.hud.update(info, ctx.game.dt || 1 / 60);
-  }
-};
-Object.defineProperty(campaign, "pausable", { get() {
-  return !anyOpen() && !ctx.cutscene && !(ctx.player && ctx.player.dead);
-} });
-function startPoint() {
-  const p = PLACE.eastgate_pass;
-  return { x: (p.x - 20) * U, y: (p.y - 15) * U, facing: Math.PI * 1.1 };
-}
 
-// src/ui/title.js
-init_engine();
+// src/ui/compass.js
 init_ctx();
-init_text();
-init_kit();
 init_hrimdal();
-
-// src/modes/hunt.js
-init_engine();
-init_ctx();
-init_bus();
-init_text();
-init_tune();
-init_math();
-init_character();
-init_inventory();
-
-// src/modes/net.js
-init_ctx();
-function makeNet(hub) {
-  const N = { sent: 0, recv: 0, bytes: 0, drops: 0, tokens: 18, last: performance.now(), queue: [], handlers: {}, closed: false };
-  N.refill = () => {
-    const now = performance.now();
-    N.tokens = Math.min(18, N.tokens + (now - N.last) / 1000 * 18);
-    N.last = now;
-  };
-  N.send = (data, o = {}) => {
-    if (N.closed || !hub || !ctx.sessionLive)
-      return false;
-    N.refill();
-    if (N.tokens < 1) {
-      if (o.reliable !== false)
-        N.queue.push({ data, o });
-      else
-        N.drops++;
-      return false;
-    }
-    if (N.queue.length && o.reliable !== false) {
-      N.queue.push({ data, o });
-      return N.flush();
-    }
-    N.tokens--;
-    const text = JSON.stringify(data);
-    if (text.length > 15000) {
-      N.drops++;
-      return false;
-    }
-    N.sent++;
-    N.bytes += text.length;
-    return hub.send(data, o) !== false;
-  };
-  N.flush = () => {
-    if (!N.queue.length || N.closed || !ctx.sessionLive)
-      return false;
-    N.refill();
-    if (N.tokens < 1)
-      return false;
-    const byTo = new Map;
-    for (const q of N.queue.splice(0)) {
-      const k = q.o.to ?? "*";
-      if (!byTo.has(k))
-        byTo.set(k, []);
-      byTo.get(k).push(q.data);
-    }
-    for (const [to, list] of byTo) {
-      if (N.tokens < 1) {
-        for (const d of list)
-          N.queue.push({ data: d, o: to === "*" ? {} : { to } });
-        continue;
-      }
-      N.tokens--;
-      const msg = { t: "b", l: list };
-      N.sent++;
-      N.bytes += JSON.stringify(msg).length;
-      hub.send(msg, to === "*" ? { reliable: true } : { to, reliable: true });
-    }
-    return true;
-  };
-  N.on = (t, fn) => {
-    N.handlers[t] = fn;
-  };
-  N.receive = (data, from) => {
-    N.recv++;
-    if (!data || typeof data !== "object")
-      return;
-    if (data.t === "b" && Array.isArray(data.l)) {
-      for (const d of data.l)
-        N.receive(d, from);
-      N.recv--;
-      return;
-    }
-    const h = N.handlers[data.t];
-    if (h)
-      h(data, from);
-  };
-  N.stats = () => ({ sent: N.sent, received: N.recv, bytes: N.bytes, drops: N.drops, queued: N.queue.length });
-  if (hub)
-    hub.on("message", (d, from) => {
-      if (!N.closed)
-        N.receive(d, from);
-    });
-  return N;
-}
-
-// src/modes/hunt.js
 init_core();
-init_hrimdal();
 init_ai();
 
 // src/actors/dragon.js
@@ -27531,7 +27412,380 @@ function pinDragon(d, src) {
   bus.emit("dragon_pinned", { dragon: d, sleeping: first });
 }
 
+// src/quests/runtime.js
+init_ctx();
+init_bus();
+init_text();
+init_registry();
+init_inventory();
+init_core();
+var S = () => ctx.state;
+var Q = {
+  stage: (id) => (S() && S().quests[id] || {}).stage || 0,
+  active: (id) => !!(S() && S().quests[id] && !S().quests[id].done),
+  done: (id) => !!(S() && S().quests[id] && S().quests[id].done),
+  at: (id, n) => Q.active(id) && Q.stage(id) === n,
+  start(id, stage) {
+    const st = S();
+    if (st.quests[id])
+      return false;
+    const q = get("quest", id);
+    stage = stage || Math.min(...Object.keys(q.stages).map(Number));
+    st.quests[id] = { stage, done: false, log: [[stage, false]], t: st.time };
+    ctx.tracked = id;
+    bus.emit("quest", { id, stage, started: true });
+    bus.emit("note", { id: "note.quest_new", v: { quest: T("quest." + id + ".title") } });
+    const sg = q.stages[stage];
+    if (sg && sg.onEnter)
+      sg.onEnter();
+    return true;
+  },
+  set(id, stage) {
+    const st = S();
+    if (!st.quests[id])
+      Q.start(id, stage);
+    const R = st.quests[id];
+    if (R.done || R.stage === stage)
+      return;
+    for (const l of R.log)
+      l[1] = true;
+    R.stage = stage;
+    R.log.push([stage, false]);
+    ctx.tracked = id;
+    const q = get("quest", id), sg = q.stages[stage];
+    bus.emit("quest", { id, stage });
+    if (ctx.hud && ctx.mode.kind === "campaign")
+      ctx.hud.msg(T("quest." + id + ".s" + stage), "gold");
+    if (sg && sg.onEnter)
+      sg.onEnter();
+    bus.emit("autosave");
+  },
+  complete(id) {
+    const st = S();
+    if (!st.quests[id])
+      Q.start(id);
+    const R = st.quests[id];
+    if (R.done)
+      return;
+    R.done = true;
+    for (const l of R.log)
+      l[1] = true;
+    st.stats.quests++;
+    const q = get("quest", id), rw = q.rewards || {};
+    if (rw.gold) {
+      st.gold += rw.gold;
+      bus.emit("take", { id: "gold", n: rw.gold });
+    }
+    for (const [it, n] of rw.items || [])
+      addItem(st, it, n);
+    if (rw.fn)
+      rw.fn();
+    bus.emit("quest", { id, done: true });
+    bus.emit("banner", { id: "note.quest_done", v: { quest: T("quest." + id + ".title") } });
+    ctx.audio && ctx.audio.sting("quest");
+    if (ctx.tracked === id)
+      ctx.tracked = Object.keys(st.quests).find((k) => !st.quests[k].done) || null;
+    bus.emit("autosave");
+  },
+  reset(id) {
+    delete S().quests[id];
+    bus.emit("quest", { id, reset: true });
+  }
+};
+function objective(id) {
+  const R = S().quests[id];
+  return R && !R.done ? T("quest." + id + ".s" + R.stage) : "";
+}
+function questList(done) {
+  const st = S();
+  return Object.entries(st.quests).filter(([, r]) => !!r.done === done).map(([id, r]) => ({ id, main: !!get("quest", id).main, log: r.log })).sort((a, b) => b.main - a.main || st.quests[b.id].t - st.quests[a.id].t);
+}
+function questMarkers(onlyTracked) {
+  const st = S(), out = [];
+  for (const [id, R] of Object.entries(st.quests)) {
+    if (R.done || onlyTracked && id !== ctx.tracked && !get("quest", id).main)
+      continue;
+    const sg = get("quest", id).stages[R.stage];
+    if (!sg || !sg.marker)
+      continue;
+    let m = sg.marker();
+    if (!m)
+      continue;
+    if (!Array.isArray(m))
+      m = [m];
+    for (const p of m) {
+      const q = resolve(p);
+      if (q)
+        out.push(Object.assign({ kind: "quest", id }, q));
+    }
+  }
+  return out;
+}
+function resolve(p) {
+  let world = p.world || "hrimdal", { x, y } = p, z = p.z || 0;
+  if (p.npc) {
+    const b = ctx.people && ctx.people.get(p.npc);
+    if (b && b.a) {
+      world = b.world;
+      x = b.a.x;
+      y = b.a.y;
+      z = b.a.z;
+    } else if (p.fallback)
+      return resolve(p.fallback);
+    else
+      return null;
+  }
+  if (p.being) {
+    if (!p.being.alive && !p.dead)
+      return null;
+    world = p.being.world || ctx.worldId;
+    const q = posOf(p.being);
+    x = q.x;
+    y = q.y;
+    z = q.z;
+  }
+  if (p.place) {
+    const pl = ctx.placeMarks && ctx.placeMarks[p.place];
+    const P = pl ? pl.P : null;
+    if (!P)
+      return null;
+    x = P.x * 16;
+    y = P.y * 16;
+    world = "hrimdal";
+  }
+  if (world === ctx.worldId)
+    return { x, y, z, world };
+  if (ctx.worldId === "hrimdal") {
+    const d = ctx.thingsOutside && ctx.thingsOutside(world);
+    return d ? { x: d.x, y: d.y, z: d.z, world: "hrimdal" } : null;
+  }
+  const exit = ctx.interiorMarks && ctx.interiorMarks[ctx.worldId] && ctx.interiorMarks[ctx.worldId].entry && ctx.interiorMarks[ctx.worldId].entry[0];
+  return exit ? { x: exit.x, y: exit.y, z: exit.z, world: ctx.worldId } : null;
+}
+function setupQuests() {
+  ctx.questList = questList;
+  ctx.questMarkers = () => questMarkers(false).filter((m) => m.world === "hrimdal" || ctx.worldId === "hrimdal");
+  ctx.trackQuest = (id) => {
+    ctx.tracked = id;
+  };
+  ctx.Q = Q;
+}
+
+// src/ui/compass.js
+var UNFOUND = 150 * M;
+var FOUND = 600 * M;
+var HIDDEN = new Set(["north_waste", "greytooth_path"]);
+function campaignHud(P, info) {
+  const st = ctx.state;
+  if (!st || !P)
+    return info;
+  const out = info.markers, x = P.a.x, y = P.a.y, here = ctx.worldId;
+  if (here === "hrimdal") {
+    for (const p of PLACES) {
+      if (HIDDEN.has(p.id))
+        continue;
+      const px = p.x * U, py = p.y * U, d = Math.hypot(px - x, py - y), found = !!st.discovered[p.id];
+      if (d > 8 * M && d < (found ? FOUND : UNFOUND))
+        out.push({ x: px, y: py, kind: "place", done: found });
+    }
+    if (st.pin)
+      out.push({ x: st.pin[0] * U, y: st.pin[1] * U, kind: "pin" });
+  }
+  for (const m of questMarkers(true))
+    if (m.world === here && Math.hypot(m.x - x, m.y - y) > 2 * M)
+      out.push(m);
+  const f = ctx.follower;
+  if (f && f.alive && !f.gone && f.world === here) {
+    const q = posOf(f);
+    out.push({ x: q.x, y: q.y, kind: "follower" });
+  }
+  for (const b of ai)
+    if (b.alive && !b.gone && b.world === here && b.ai && b.ai.state === "combat" && b.ai.target === P.being) {
+      const q = posOf(b);
+      out.push({ x: q.x, y: q.y, kind: "enemy" });
+    }
+  for (const d of dragons)
+    if (d.alive && !d.gone && d.world === here && d.target === P.being) {
+      const q = posOf(d);
+      out.push({ x: q.x, y: q.y, kind: "enemy" });
+    }
+  info.quest = ctx.tracked ? objective(ctx.tracked) : "";
+  return info;
+}
+
+// src/modes/campaign.js
+var campaign = {
+  hooks: [],
+  pausable: true,
+  enter(data = {}) {
+    const W = ctx.worlds.hrimdal;
+    if (!ctx.player) {
+      ctx.world = W;
+      ctx.worldId = "hrimdal";
+    }
+    ctx.mode = ctx.mode && ctx.mode.kind === "campaign" ? ctx.mode : { kind: "campaign" };
+    ctx.world.onDraw = onDraw;
+    if (!ctx.player || data.fresh) {
+      const S = ctx.state, at = S.pos ? { x: S.pos[0], y: S.pos[1], z: S.pos[2], facing: S.facing } : startPoint();
+      if (ctx.player) {
+        removeBeing(ctx.player.being);
+        ctx.player.world.remove(ctx.player.a);
+        ctx.player = null;
+      }
+      ctx.goWorld(S.where && S.where !== "hrimdal" ? S.where : "hrimdal", at, { instant: true, noSave: true, noFollower: true });
+      bus.emit("campaign_start", { fresh: !!data.fresh, loaded: !!data.loaded });
+    }
+    if (!ctx.hud)
+      ctx.hud = new Hud(hostEl());
+    ctx.hud.show(true);
+    for (const h of this.hooks)
+      h("enter", data);
+  },
+  exit() {
+    if (ctx.hud)
+      ctx.hud.show(false);
+  },
+  update(dt) {
+    if (step(dt))
+      return;
+    if (ctx.cutscene && ctx.cutscene.update(dt))
+      return;
+    stepTime(dt);
+    stepDiscovery(ctx.player);
+    stepWorld(dt);
+    for (const h of this.hooks)
+      h("step", dt);
+  },
+  draw(r) {
+    drawWorld(r);
+    const P = ctx.player;
+    if (!P || !ctx.hud)
+      return;
+    const info = campaignHud(P, hudInfo(P));
+    const pr = promptFor(P.focus, P);
+    if (pr && !P.carrying)
+      info.prompt = Object.assign({ keys: [ctx.game.input.label("interact")] }, pr);
+    for (const h of this.hooks)
+      h("hud", info);
+    ctx.hud.update(info, ctx.game.dt || 1 / 60);
+  }
+};
+Object.defineProperty(campaign, "pausable", { get() {
+  return !anyOpen() && !ctx.cutscene && !(ctx.player && ctx.player.dead);
+} });
+function startPoint() {
+  const p = PLACE.eastgate_pass;
+  return { x: (p.x - 20) * U, y: (p.y - 15) * U, facing: Math.PI * 1.1 };
+}
+
+// src/ui/title.js
+init_engine();
+init_ctx();
+init_text();
+init_kit();
+init_hrimdal();
+
 // src/modes/hunt.js
+init_engine();
+init_ctx();
+init_bus();
+init_text();
+init_tune();
+init_math();
+init_character();
+init_inventory();
+
+// src/modes/net.js
+init_ctx();
+function makeNet(hub) {
+  const N = { sent: 0, recv: 0, bytes: 0, drops: 0, tokens: 18, last: performance.now(), queue: [], handlers: {}, closed: false };
+  N.refill = () => {
+    const now = performance.now();
+    N.tokens = Math.min(18, N.tokens + (now - N.last) / 1000 * 18);
+    N.last = now;
+  };
+  N.send = (data, o = {}) => {
+    if (N.closed || !hub || !ctx.sessionLive)
+      return false;
+    N.refill();
+    if (N.tokens < 1) {
+      if (o.reliable !== false)
+        N.queue.push({ data, o });
+      else
+        N.drops++;
+      return false;
+    }
+    if (N.queue.length && o.reliable !== false) {
+      N.queue.push({ data, o });
+      return N.flush();
+    }
+    N.tokens--;
+    const text = JSON.stringify(data);
+    if (text.length > 15000) {
+      N.drops++;
+      return false;
+    }
+    N.sent++;
+    N.bytes += text.length;
+    return hub.send(data, o) !== false;
+  };
+  N.flush = () => {
+    if (!N.queue.length || N.closed || !ctx.sessionLive)
+      return false;
+    N.refill();
+    if (N.tokens < 1)
+      return false;
+    const byTo = new Map;
+    for (const q of N.queue.splice(0)) {
+      const k = q.o.to ?? "*";
+      if (!byTo.has(k))
+        byTo.set(k, []);
+      byTo.get(k).push(q.data);
+    }
+    for (const [to, list] of byTo) {
+      if (N.tokens < 1) {
+        for (const d of list)
+          N.queue.push({ data: d, o: to === "*" ? {} : { to } });
+        continue;
+      }
+      N.tokens--;
+      const msg = { t: "b", l: list };
+      N.sent++;
+      N.bytes += JSON.stringify(msg).length;
+      hub.send(msg, to === "*" ? { reliable: true } : { to, reliable: true });
+    }
+    return true;
+  };
+  N.on = (t, fn) => {
+    N.handlers[t] = fn;
+  };
+  N.receive = (data, from) => {
+    N.recv++;
+    if (!data || typeof data !== "object")
+      return;
+    if (data.t === "b" && Array.isArray(data.l)) {
+      for (const d of data.l)
+        N.receive(d, from);
+      N.recv--;
+      return;
+    }
+    const h = N.handlers[data.t];
+    if (h)
+      h(data, from);
+  };
+  N.stats = () => ({ sent: N.sent, received: N.recv, bytes: N.bytes, drops: N.drops, queued: N.queue.length });
+  if (hub)
+    hub.on("message", (d, from) => {
+      if (!N.closed)
+        N.receive(d, from);
+    });
+  return N;
+}
+
+// src/modes/hunt.js
+init_core();
+init_hrimdal();
+init_ai();
 init_gear();
 var START = { x: 904, y: 630 };
 var TOWER = { x: 760, y: 420 };
@@ -28067,7 +28321,18 @@ function report(timeUp) {
     hub.result({ score: Math.round(H2.glory[me] || 0), stats, awards: aw });
 }
 function hudFor(P, timeMs, rect = [0, 0, 1, 1], names = true) {
-  const info = hudInfo(P), id = idOf(P.being);
+  const info = hudInfo(P), id = idOf(P.being), D = H2.dragon;
+  if (D && !D.gone && (D.puppet ? D.net && D.net.alive : D.alive)) {
+    info.enemy = { name: T(D.name), hp: D.puppet ? D.net.hp * D.maxHp : D.hp, max: D.maxHp, boss: true };
+    const q = posOf(D);
+    info.markers.push({ x: q.x, y: q.y, kind: "quest" });
+  }
+  for (const Q of ctx.players)
+    if (Q !== P && Q.a)
+      info.markers.push({ x: Q.a.x, y: Q.a.y, kind: "player", color: H2.colors[idOf(Q.being)] });
+  for (const g of H2.ghosts.values())
+    if (g.a && g.a.visible)
+      info.markers.push({ x: g.a.x, y: g.a.y, kind: "player", color: g.color });
   info.corner = [T("round.time", { time: fmt(Math.max(0, LIMIT_MS - timeMs)) }), T("round.glory", { glory: num(H2.glory[id] || 0) })];
   if (H2.versus) {
     const best = Object.entries(H2.glory).sort((a, b) => b[1] - a[1])[0];
@@ -28432,6 +28697,7 @@ var actor = null;
 var look2 = null;
 var bg = "warrior";
 var spot = null;
+var SHIFT = -0.32;
 var label = (k, v) => k === "bg" ? T("bg." + v) : k === "body" ? T("create.body." + (v ? "b" : "a")) : k === "hair" ? T("create.hair." + HAIR_STYLES[v]) : T("create.n", { n: v + 1 });
 var create = {
   enter() {
@@ -28442,6 +28708,7 @@ var create = {
     bg = "warrior";
     const p = PLACE.eastgate_pass;
     spot = { x: (p.x - 6) * U, y: (p.y - 4) * U };
+    spot.base = Math.atan2(spot.y - (p.y - 6) * U, spot.x - (p.x - 4) * U) + 0.5;
     this.refresh();
     closeAll();
     open({ id: "create", cls: "clear", build(s) {
@@ -28480,9 +28747,9 @@ var create = {
     const W = ctx.world, st = newState({ bg, look: look2 }), rig = dressRig(makeRig(look2), st);
     if (actor)
       W.remove(actor);
-    actor = W.hero({ x: spot.x, y: spot.y, rig, facing: Math.PI * 0.75 });
-    actor.facing = Math.PI * 0.75;
-    actor.anim = { stance: "ready" };
+    actor = W.hero({ x: spot.x, y: spot.y, rig, facing: spot.base - 0.55 });
+    actor.facing = spot.base - 0.55;
+    actor.anim = { stance: null };
   },
   start() {
     const W = ctx.world;
@@ -28503,12 +28770,13 @@ var create = {
   update(dt) {
     this.t += dt;
     step(dt);
-    const W = ctx.world, a = this.t * 0.35, d = 3.2 * M;
+    const W = ctx.world, d = 4 * M;
     const I = ctx.game.input;
     if (I.padAim)
       this.turn = (this.turn || 0) + I.padAim[0] * dt * 2;
-    const ang = a + (this.turn || 0), z = W.ground(spot.x, spot.y) + 1.3 * M;
-    W.camera.fixed = { x: spot.x + Math.cos(ang) * d + 1.2 * M, y: spot.y + Math.sin(ang) * d, z, yaw: Math.atan2(-Math.sin(ang), -Math.cos(ang)), pitch: -0.08, roll: 0, fov: 50 };
+    const ang = spot.base + Math.sin(this.t * 0.3) * 0.75 + (this.turn || 0), z = W.ground(spot.x, spot.y) + 1.25 * M;
+    const cx = spot.x + Math.cos(ang) * d, cy = spot.y + Math.sin(ang) * d, wide = innerWidth / Math.max(1, innerHeight) > 1.2;
+    W.camera.fixed = { x: cx, y: cy, z, yaw: Math.atan2(spot.y - cy, spot.x - cx) + (wide ? SHIFT : 0), pitch: -0.1, roll: 0, fov: 50 };
     if (W.scatter)
       W.scatter.stream(spot.x, spot.y, 2);
     W.step(dt);
@@ -28543,11 +28811,11 @@ init_character();
 init_core();
 var bank = { battle: 0, heal: 0 };
 var sneakT = 0;
-var S = () => ctx.state;
+var S2 = () => ctx.state;
 var mine = (src) => src && src.kind === "player" && ctx.mode && !ctx.mode.round;
 function setupProgress() {
   bus.on("player_melee", (e) => {
-    const s = S();
+    const s = S2();
     if (!s || ctx.mode.round)
       return;
     if (e.bash) {
@@ -28559,7 +28827,7 @@ function setupProgress() {
       sneakHit();
   });
   bus.on("player_arrow", (e) => {
-    const s = S();
+    const s = S2();
     if (!s || ctx.mode.round || !e.res)
       return;
     const sneak = e.res.sneak;
@@ -28568,7 +28836,7 @@ function setupProgress() {
       sneakHit();
   });
   bus.on("hit", (e) => {
-    const s = S();
+    const s = S2();
     if (!s || ctx.mode.round)
       return;
     if (e.target.kind === "player" && e.blocked && e.src)
@@ -28585,7 +28853,7 @@ function setupProgress() {
       bus.emit("sneak_attack", { mult: e.kind });
   });
   bus.on("healed", (e) => {
-    const s = S();
+    const s = S2();
     if (!s || ctx.mode.round || !mine(e.src))
       return;
     bank.heal += e.amount / 10;
@@ -28596,27 +28864,27 @@ function setupProgress() {
     }
   });
   bus.on("calm", (e) => {
-    if (mine(e.src) && S() && !ctx.mode.round)
-      skillXp(S(), "mind", 6);
+    if (mine(e.src) && S2() && !ctx.mode.round)
+      skillXp(S2(), "mind", 6);
   });
   bus.on("cast", (e) => {
-    if (e.spell === "hush" && mine(e.src) && S() && !ctx.mode.round) {
+    if (e.spell === "hush" && mine(e.src) && S2() && !ctx.mode.round) {
       const p = posOf(e.src);
       if (ctx.beings.some((b) => b.alive && hostile(b, e.src) && Math.hypot(posOf(b).x - p.x, posOf(b).y - p.y) < 25 * M))
-        skillXp(S(), "mind", 4);
+        skillXp(S2(), "mind", 4);
     }
   });
   bus.on("lockpicked", (e) => {
-    if (S() && !ctx.mode.round)
-      skillXp(S(), "theft", { easy: 4, average: 8, hard: 14, very_hard: 22 }[e.level] || 4);
+    if (S2() && !ctx.mode.round)
+      skillXp(S2(), "theft", { easy: 4, average: 8, hard: 14, very_hard: 22 }[e.level] || 4);
   });
   bus.on("pickpocketed", (e) => {
-    if (S() && !ctx.mode.round)
-      skillXp(S(), "theft", 3 + (e.value || 0) / 10);
+    if (S2() && !ctx.mode.round)
+      skillXp(S2(), "theft", 3 + (e.value || 0) / 10);
   });
 }
 function sneakHit() {
-  const s = S();
+  const s = S2();
   s.stats.sneakAttacks++;
   skillXp(s, "sneak", 4);
 }
@@ -28631,7 +28899,7 @@ function stepSneakXp(P, dt) {
   sneakT += dt;
   if (sneakT >= 4) {
     sneakT -= 4;
-    skillXp(S(), "sneak", 1);
+    skillXp(S2(), "sneak", 1);
   }
 }
 
@@ -28661,7 +28929,7 @@ function setupNotify() {
   bus.on("skill", (e) => {
     const h = hud();
     if (h)
-      h.msg(T("note.skill", { skill: T("skill." + e.skill), level: e.lv }));
+      h.msg(T("note.skill", { skill: T("skill." + e.skill), level: e.lv }), "", "skill:" + e.skill);
     ctx.audio && ctx.audio.sting("skill");
   });
   bus.on("level_due", (e) => {
@@ -29185,15 +29453,15 @@ function useFav(S, ref, P) {
 // src/ui/hub.js
 init_hrimdal();
 init_core();
-var S2 = () => ctx.state;
+var S3 = () => ctx.state;
 var P4 = () => ctx.player;
 var clock = () => {
-  const t = S2().time, h = Math.floor(t / 60) % 24, m = Math.floor(t % 60);
+  const t = S3().time, h = Math.floor(t / 60) % 24, m = Math.floor(t % 60);
   return T("hub.time", { day: day(), time: String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") });
 };
 var TILES = ["items", "magic", "skills", "map", "quests", "character"];
 function openHub(focus = 0) {
-  if (S2().levelsDue > 0)
+  if (S3().levelsDue > 0)
     return openLevelUp(() => openHub(focus));
   return open({
     id: "hub",
@@ -29201,7 +29469,7 @@ function openHub(focus = 0) {
     grid: 3,
     build(s) {
       const h = el("div", "head", s.root);
-      const st = S2();
+      const st = S3();
       el("h1", "", h, T("hub.level", { level: st.level }));
       const xb = el("div", "bar", h);
       xb.style.width = "8em";
@@ -29235,7 +29503,7 @@ function openHub(focus = 0) {
 var TABS = ["all", ...CATEGORIES];
 function openItems(o = {}) {
   let tab = o.tab || 0;
-  const list = () => S2().inv.filter((it) => TABS[tab] === "all" || def2(it).cat === TABS[tab] || TABS[tab] === "misc" && !CATEGORIES.includes(def2(it).cat)).sort((a, b) => isEquipped(S2(), b.uid) - isEquipped(S2(), a.uid) || itemName(a).localeCompare(itemName(b), E.lang.code));
+  const list = () => S3().inv.filter((it) => TABS[tab] === "all" || def2(it).cat === TABS[tab] || TABS[tab] === "misc" && !CATEGORIES.includes(def2(it).cat)).sort((a, b) => isEquipped(S3(), b.uid) - isEquipped(S3(), a.uid) || itemName(a).localeCompare(itemName(b), E.lang.code));
   const scr = open({
     id: "items",
     build(s) {
@@ -29258,10 +29526,10 @@ function openItems(o = {}) {
         return [];
       }
       return L.map((it) => {
-        const sl = equippedSlots(S2(), it.uid), tag = sl.includes("right") && sl.includes("left") ? T("items.both") : sl.includes("right") ? T("items.right") : sl.includes("left") ? T("items.left") : sl.length ? T("items.worn") : it.n > 1 ? "×" + it.n : "";
-        const r = row(s.list, itemName(it), tag, (it.stolen ? "stolen " : "") + (S2().favs.includes("item:" + it.uid) ? "fav" : ""));
+        const sl = equippedSlots(S3(), it.uid), tag = sl.includes("right") && sl.includes("left") ? T("items.both") : sl.includes("right") ? T("items.right") : sl.includes("left") ? T("items.left") : sl.length ? T("items.worn") : it.n > 1 ? "×" + it.n : "";
+        const r = row(s.list, itemName(it), tag, (it.stolen ? "stolen " : "") + (S3().favs.includes("item:" + it.uid) ? "fav" : ""));
         return { el: r, it, onPick: () => act(s, it, "right"), onFocus: () => {}, onAlt: { m_left: () => act(s, it, "left"), m_drop: () => drop(s, it), m_fav: () => {
-          toggleFav(S2(), "item:" + it.uid);
+          toggleFav(S3(), "item:" + it.uid);
           s.rebuild();
         } } };
       });
@@ -29271,7 +29539,7 @@ function openItems(o = {}) {
       if (r)
         detail(s.det, r.it);
     },
-    info: () => T("items.carry", { w: num(carried(S2())), max: num(carryMax(S2())) }),
+    info: () => T("items.carry", { w: num(carried(S3())), max: num(carryMax(S3())) }),
     actions: [
       ["confirm", "items.use", (s) => s.pick()],
       ["m_left", "items.left_hand", (s) => {
@@ -29287,7 +29555,7 @@ function openItems(o = {}) {
       ["m_fav", "items.fav", (s) => {
         const r = s.rows[s.i];
         if (r) {
-          toggleFav(S2(), "item:" + r.it.uid);
+          toggleFav(S3(), "item:" + r.it.uid);
           s.rebuild();
         }
       }],
@@ -29307,7 +29575,7 @@ function openItems(o = {}) {
   return scr;
 }
 function act(s, it, side) {
-  const r = useItem(S2(), it.uid, P4(), side);
+  const r = useItem(S3(), it.uid, P4(), side);
   if (r === "read") {
     close(s);
   } else
@@ -29319,7 +29587,7 @@ function drop(s, it) {
     bus.emit("note", { id: "note.quest_item" });
     return;
   }
-  removeItem(S2(), it.uid, 1);
+  removeItem(S3(), it.uid, 1);
   bus.emit("drop", { id: it.id, stolen: !!it.stolen, tier: it.tier || 0 });
   s.rebuild();
 }
@@ -29348,17 +29616,17 @@ function detail(box, it, o = {}) {
     }
   };
   if (d.cat === "weapon" && d.type !== "arrow") {
-    const cur = hand(S2(), "right"), cd = cur.kind === "weapon" || cur.kind === "bow" ? cur.def.dmg * (1 + 0.1 * (cur.item.tier || 0)) : 3;
+    const cur = hand(S3(), "right"), cd = cur.kind === "weapon" || cur.kind === "bow" ? cur.def.dmg * (1 + 0.1 * (cur.item.tier || 0)) : 3;
     const v = Math.round(d.dmg * (1 + 0.1 * (it.tier || 0)));
-    stat("stat.damage", v, isEquipped(S2(), it.uid) ? 0 : Math.round(v - cd));
+    stat("stat.damage", v, isEquipped(S3(), it.uid) ? 0 : Math.round(v - cd));
   }
   if (d.type === "arrow")
     stat("stat.damage", "+" + d.dmg);
   if (d.cat === "armour" && d.armor) {
-    const worn = S2().inv.find((x) => x.uid === S2().eq[d.slot === "shield" ? "left" : d.slot]);
+    const worn = S3().inv.find((x) => x.uid === S3().eq[d.slot === "shield" ? "left" : d.slot]);
     const wd = worn && def2(worn);
     const v = Math.round(d.armor * (1 + 0.1 * (it.tier || 0))), w = wd && wd.armor ? Math.round(wd.armor * (1 + 0.1 * (worn.tier || 0))) : 0;
-    stat("stat.armour", v, isEquipped(S2(), it.uid) ? 0 : v - w);
+    stat("stat.armour", v, isEquipped(S3(), it.uid) ? 0 : v - w);
   }
   if (d.block)
     stat("stat.block", Math.round(d.block * 100) + "%");
@@ -29367,7 +29635,7 @@ function detail(box, it, o = {}) {
     for (const f of fx)
       stat("effect." + f.e, f.mag + (f.dur ? "  " + T("stat.seconds", { s: f.dur }) : ""));
   if (d.cat === "ingredient") {
-    const k = knownEffects(S2(), it.id);
+    const k = knownEffects(S3(), it.id);
     el("p", "muted", box, k.map((e) => e ? T("effect." + e) : "?").join("  ·  "));
   }
   stat("stat.weight", d.quest ? 0 : d.w);
@@ -29391,7 +29659,7 @@ function openMagic() {
     s.list.parentNode.style.padding = ".4em";
     s.det = el("div", "col panel detail", body);
   }, items(s) {
-    const st = S2();
+    const st = S3();
     if (tab === 0)
       return st.spells.map((id) => {
         const ref = "spell:" + id, tag = st.eq.right === ref && st.eq.left === ref ? T("items.both") : st.eq.right === ref ? T("items.right") : st.eq.left === ref ? T("items.left") : "";
@@ -29428,7 +29696,7 @@ function openMagic() {
       el("p", "muted", box, T("magic.none"));
       return;
     }
-    const st = S2();
+    const st = S3();
     if (r.sp) {
       const sp = get("spell", r.sp);
       el("h2", "", box, T("spell." + r.sp + ".name"));
@@ -29480,14 +29748,14 @@ function openMagic() {
   ] });
 }
 function equipSpell(ref, side) {
-  equip(S2(), ref, side);
+  equip(S3(), ref, side);
   if (P4()) {
     P4().sheathed = false;
     P4().refreshGear();
   }
 }
 function unlockNext(id) {
-  const st = S2(), sh = get("shout", id), w = sh.words.find((x) => st.words[x] === "locked");
+  const st = S3(), sh = get("shout", id), w = sh.words.find((x) => st.words[x] === "locked");
   if (!w)
     return false;
   if (st.souls <= 0 && !st.cheats.souls) {
@@ -29503,7 +29771,7 @@ function unlockNext(id) {
   return true;
 }
 function openSkills() {
-  if (S2().levelsDue > 0)
+  if (S3().levelsDue > 0)
     return openLevelUp(openSkills);
   const groups = Object.keys(GROUPS);
   let tab = 0;
@@ -29511,7 +29779,7 @@ function openSkills() {
     id: "skills",
     grid: 3,
     build(s) {
-      const st = S2(), h = header(s, T("hub.skills"), groups.map((g) => T("group." + g)), tab, (k) => {
+      const st = S3(), h = header(s, T("hub.skills"), groups.map((g) => T("group." + g)), tab, (k) => {
         tab = k;
         s.i = 0;
         s.rebuild();
@@ -29535,7 +29803,7 @@ function openSkills() {
       Object.assign(s.det.style, { position: "absolute", left: "5%", right: "5%", bottom: "calc(5% + 2.4em)", height: "4.2em" });
     },
     items(s) {
-      const st = S2(), sk = GROUPS[groups[tab]], perks = sk.map((k) => all("perk").filter((p) => p.skill === k)), out = [];
+      const st = S3(), sk = GROUPS[groups[tab]], perks = sk.map((k) => all("perk").filter((p) => p.skill === k)), out = [];
       for (let row = 0;row < 4; row++)
         for (let c = 0;c < sk.length; c++) {
           const p = perks[c][row];
@@ -29565,7 +29833,7 @@ function openSkills() {
       box.textContent = "";
       if (!r || !r.p)
         return;
-      const st = S2(), p = get("perk", r.p);
+      const st = S3(), p = get("perk", r.p);
       el("h2", "", box, T("perk." + r.p + ".name") + "  ·  " + T("skills.needs", { skill: T("skill." + p.skill), level: perkNeed(st, r.p) }));
       el("p", "", box, T("perk." + r.p + ".desc"));
     },
@@ -29585,13 +29853,13 @@ function openLevelUp(then) {
     id: "levelup",
     grid: 3,
     build(s) {
-      header(s, T("levelup.title", { level: S2().level + 1 }));
+      header(s, T("levelup.title", { level: S3().level + 1 }));
       el("p", "muted center-text", s.root, T("levelup.text")).style.cssText = "position:absolute;left:0;right:0;top:16%";
       s.grid = el("div", "tiles", s.root);
       Object.assign(s.grid.style, { position: "absolute", left: "0", right: "0", top: "30%" });
     },
     items(s) {
-      const st = S2();
+      const st = S3();
       return ["hp", "mp", "sp"].map((a) => {
         const t = el("div", "tile", s.grid);
         el("div", "", t, T("attr." + a));
@@ -29656,7 +29924,7 @@ function bakeRelief() {
   return cv;
 }
 function openMap() {
-  const st = S2(), p = P4() ? ctx.worldId === "hrimdal" ? posOf(P4().being) : (() => {
+  const st = S3(), p = P4() ? ctx.worldId === "hrimdal" ? posOf(P4().being) : (() => {
     const d = ctx.thingsOutside && ctx.thingsOutside(ctx.worldId);
     return d || { x: 0, y: 0 };
   })() : { x: 0, y: 0 };
@@ -29844,7 +30112,7 @@ function drawMap(s, V, st) {
   el && (s.under.textContent = np ? T("place." + np.id) + (st.discovered[np.id] ? "" : "  ·  " + T("map.unknown")) : "");
 }
 function fastTravel(id) {
-  const st = S2(), pl = P4(), p = PLACE[id];
+  const st = S3(), pl = P4(), p = PLACE[id];
   if (!p || !pl)
     return false;
   if (overloaded(st) && !st.cheats.nocarry) {
@@ -29911,7 +30179,7 @@ function openQuests() {
 }
 function openCharacter() {
   return open({ id: "character", build(s) {
-    const st = S2();
+    const st = S3();
     header(s, T("hub.character"));
     const body = el("div", "body", s.root), a = el("div", "col panel detail", body), b = el("div", "col panel detail", body);
     const stat = (box, k, v) => {
@@ -29977,7 +30245,7 @@ init_text();
 init_registry();
 init_inventory();
 init_character();
-var S3 = () => ctx.state;
+var S4 = () => ctx.state;
 var GROUPS2 = { forge: ["iron", "steel", "bronze", "dragon"] };
 function stationScreen(station) {
   if (station === "alchemy")
@@ -30002,7 +30270,7 @@ function stationScreen(station) {
       s.det = el("div", "col panel detail", body);
     },
     items(s) {
-      const st = S3(), list = recipesAt(station).filter((r) => !groups || r.group === groups[tab]);
+      const st = S4(), list = recipesAt(station).filter((r) => !groups || r.group === groups[tab]);
       return list.map((r) => {
         const ok = canMake(st, r);
         return { el: row(s.list, itemName({ id: r.makes[0] }) + (r.makes[1] > 1 ? " ×" + r.makes[1] : ""), ok === "perk" ? T("craft.needs_perk") : "", ok === "ok" ? "" : "off"), r, off: ok !== "ok", onPick: () => {
@@ -30023,7 +30291,7 @@ function stationScreen(station) {
       const box = s.det;
       el("h2", "", box, T("craft.needs"));
       for (const [id, n] of r.r.needs) {
-        const have = count(S3(), id);
+        const have = count(S4(), id);
         el("div", "stat " + (have >= n ? "" : "bad"), box).append(itemName({ id }), "  ", num(have) + " / " + n);
       }
       if (r.r.perk)
@@ -30055,7 +30323,7 @@ function workbenchScreen() {
       s.det = el("div", "col panel detail", body);
     },
     items(s) {
-      const st = S3(), L = st.inv.filter((it) => {
+      const st = S4(), L = st.inv.filter((it) => {
         const d = def2(it);
         return d.cat === "weapon" && d.type !== "arrow" && !d.npcOnly || d.cat === "armour" && d.slot !== "ring";
       });
@@ -30080,8 +30348,8 @@ function workbenchScreen() {
       detail(s.det, r.it);
       const need = improveNeed(r.it);
       if (need)
-        el("div", "stat", s.det).append(itemName({ id: need }), "  ", num(count(S3(), need)) + " / 1");
-      el("p", "muted", s.det, T("craft.tiers", { tier: r.it.tier || 0, max: maxTier(S3()) }));
+        el("div", "stat", s.det).append(itemName({ id: need }), "  ", num(count(S4(), need)) + " / 1");
+      el("p", "muted", s.det, T("craft.tiers", { tier: r.it.tier || 0, max: maxTier(S4()) }));
     },
     actions: [["confirm", "craft.improve", (s) => s.pick()], ["cancel", "ui.back", (s) => s.back()]]
   });
@@ -30093,12 +30361,12 @@ function chopScreen() {
     build(s) {
       const m = el("div", "modal panel", s.root);
       el("h2", "", m, T("station.chopping"));
-      el("p", "muted", m, T("chop.have", { count: count(S3(), "firewood") }));
+      el("p", "muted", m, T("chop.have", { count: count(S4(), "firewood") }));
       s.list = el("div", "list", m);
     },
     items(s) {
       return [{ el: row(s.list, T("chop.do")), onPick: () => {
-        addItem(S3(), "firewood", 1);
+        addItem(S4(), "firewood", 1);
         ctx.audio && ctx.audio.sfx("chop");
         bus.emit("craft", { recipe: "chop_wood", station: "chopping", item: "firewood", n: 1 });
         s.rebuild();
@@ -30115,7 +30383,7 @@ function alchemyScreen() {
     s.list = el("div", "list", el("div", "col panel", body));
     s.list.parentNode.style.padding = ".4em";
     s.det = el("div", "col panel detail", body);
-    const st = S3();
+    const st = S4();
     el("h2", "", s.det, T("alchemy.chosen"));
     for (const id of chosen)
       el("div", "stat", s.det).append(itemName({ id }), "  ", knownEffects(st, id).map((e) => e ? T("effect." + e) : "?").join(" · "));
@@ -30126,7 +30394,7 @@ function alchemyScreen() {
     } else
       el("p", "muted", s.det, T("alchemy.pick"));
   }, items(s) {
-    const st = S3(), L = st.inv.filter((it) => def2(it).cat === "ingredient" || it.id === "dragon_scale");
+    const st = S4(), L = st.inv.filter((it) => def2(it).cat === "ingredient" || it.id === "dragon_scale");
     if (!L.length)
       el("div", "row off", s.list, T("alchemy.none"));
     return L.map((it) => ({ el: row(s.list, itemName(it), (chosen.includes(it.id) ? "✓  " : "") + "×" + it.n, chosen.includes(it.id) ? "fav" : ""), it, onPick: () => {
@@ -30140,7 +30408,7 @@ function alchemyScreen() {
   }, actions: [["confirm", "alchemy.choose", (s) => s.pick()], ["m_fav", "alchemy.brew", (s) => {
     if (chosen.length < 2)
       return;
-    const r = brew(S3(), chosen.slice());
+    const r = brew(S4(), chosen.slice());
     chosen.length = 0;
     bus.emit("note", r.ok ? { id: "note.brewed", v: { item: itemName(r.item) } } : { id: "note.brew_fail" });
     ctx.audio && ctx.audio.sfx(r.ok ? "brew" : "fizzle");
@@ -31041,16 +31309,16 @@ function bark2(b, id) {
 }
 
 // src/dev/autopilot.js
-var S4 = () => ctx.state;
+var S5 = () => ctx.state;
 var P5 = () => ctx.player;
 var I = () => ctx.game.input;
-var Q = () => ctx.Q;
+var Q2 = () => ctx.Q;
 var AP = { on: false, t: 0, cool: 0, want: null, buy: null, make: null, improve: null, brew: null, pocket: null, log: [], last: "", stuck: 0, holdT: 0, order: null };
 var log = (s) => {
   if (AP.last === s)
     return;
   AP.last = s;
-  AP.log.push(Math.round(S4().time) + " " + s);
+  AP.log.push(Math.round(S5().time) + " " + s);
   if (AP.log.length > 300)
     AP.log.shift();
 };
@@ -31060,7 +31328,7 @@ function autoplay(on, o = {}) {
   AP.want = null;
   AP.log.length = 0;
   AP.order = o.order || null;
-  const st = S4(), FAST = { cheats: { god: true, picks: true, noshoutcd: true, mp: true, sp: true }, tune: { enemy_health: 0.1, dragon_health: 0.1, player_damage: 5, dragon_land_every: 5 } };
+  const st = S5(), FAST = { cheats: { god: true, picks: true, noshoutcd: true, mp: true, sp: true }, tune: { enemy_health: 0.1, dragon_health: 0.1, player_damage: 5, dragon_land_every: 5 } };
   if (on && o.fast !== false && !AP.saved) {
     AP.saved = { cheats: Object.fromEntries(Object.keys(FAST.cheats).map((k) => [k, st.cheats[k]])), tune: Object.fromEntries(Object.keys(FAST.tune).map((k) => [k, tune.get(k)])) };
     Object.assign(st.cheats, FAST.cheats);
@@ -31184,7 +31452,7 @@ function talk2(id, choice) {
   return false;
 }
 function meleeReady() {
-  const st = S4(), r = st.eq.right, it = typeof r === "number" ? st.inv.find((i) => i.uid === r) : null, d = it && get("item", it.id);
+  const st = S5(), r = st.eq.right, it = typeof r === "number" ? st.inv.find((i) => i.uid === r) : null, d = it && get("item", it.id);
   if (d && d.cat === "weapon" && d.type !== "bow") {
     P5().view = "third";
     return true;
@@ -31255,7 +31523,7 @@ function fight(pred, o = {}) {
   return "hit";
 }
 function shootAt(b) {
-  const st = S4(), bow = findItem(st, "hunting_bow") || findItem(st, "long_bow");
+  const st = S5(), bow = findItem(st, "hunting_bow") || findItem(st, "long_bow");
   if (!bow)
     return "nobow";
   if (!isEquipped(st, bow.uid)) {
@@ -31288,7 +31556,7 @@ function shootAt(b) {
   return "pull";
 }
 function castAt(spell, x, y, z) {
-  const st = S4();
+  const st = S5();
   if (st.eq.right !== "spell:" + spell) {
     equip(st, "spell:" + spell, "right");
     P5().refreshGear && P5().refreshGear();
@@ -31315,7 +31583,7 @@ function castAt(spell, x, y, z) {
   return false;
 }
 function shout(id, x, y) {
-  const st = S4();
+  const st = S5();
   st.shout = id;
   face2(x, y);
   if (st.shoutCd > 0)
@@ -31339,7 +31607,7 @@ function sneak(on) {
   if (!!P5().sneak !== on)
     I().tap("sneak");
 }
-var has = (id) => count(S4(), id) > 0;
+var has = (id) => count(S5(), id) > 0;
 var mk = (k) => ctx.interiorMarks && ctx.interiorMarks[ctx.worldId] && (ctx.interiorMarks[ctx.worldId][k] || [])[0];
 var STEPS = {
   "mq1.10": () => {
@@ -31368,7 +31636,7 @@ var STEPS = {
     use(thing((t) => t.items === "mq1_cart"));
   },
   "mq1.40": () => {
-    const st = S4(), w = findItem(st, "iron_axe");
+    const st = S5(), w = findItem(st, "iron_axe");
     if (w && !isEquipped(st, w.uid) && !st.eq.right)
       equip(st, w.uid);
     fight((b) => b.id === "mq1_wolf");
@@ -31492,7 +31760,7 @@ var STEPS = {
       use(thing((t) => t.cid === "mine_pickaxe"));
       return;
     }
-    use(thing((t) => t.kind === "ore" && t.world === "silvervein_mine" && t.ore === "iron_ore" && !(S4().looted[t.id] > S4().time)));
+    use(thing((t) => t.kind === "ore" && t.world === "silvervein_mine" && t.ore === "iron_ore" && !(S5().looted[t.id] > S5().time)));
   },
   "sq02.30": () => {
     AP.make = { item: "iron_bar", n: 2 };
@@ -31545,12 +31813,12 @@ var STEPS = {
       return;
     if (fight((b) => b.def && b.def.id === "hrolf") === "none") {
       const v = thing((t) => t.kind === "voice_stone" && t.world === "ashgrip_keep");
-      if (v && !S4().words.elm)
+      if (v && !S5().words.elm)
         use(v);
     }
   },
   "sq05.30": () => {
-    if (ctx.worldId === "ashgrip_keep" && !S4().words.elm) {
+    if (ctx.worldId === "ashgrip_keep" && !S5().words.elm) {
       use(thing((t) => t.kind === "voice_stone" && t.world === "ashgrip_keep"));
       return;
     }
@@ -31607,7 +31875,7 @@ function spawnDeer() {
 var PICKUP = [["sq01", "eskil", "wolves"], ["sq02", "bjarke", "help"], ["sq03", "oddny", "fever"], ["sq08", "asbjorn", "lesson"], ["sq06", "asbjorn", "giant"], ["sq05", "leif", "bounty"], ["sq04", "knut", "work"], ["sq07", "sigrun", "hire"]];
 var ORDER = ["mq1", "mq2", "sq01", "sq02", "sq03", "sq08", "sq06", "sq05", "sq04", "sq07", "mq3", "mq4", "mq5", "mq6"];
 function plan() {
-  const q = Q();
+  const q = Q2();
   if (!q)
     return null;
   for (const id of AP.order || ORDER) {
@@ -31824,7 +32092,7 @@ function setupAutopilot() {
 
 // src/dev/devtools.js
 init_bus();
-var S5 = () => ctx.state;
+var S6 = () => ctx.state;
 var P6 = () => ctx.player;
 var TABS2 = ["cheats", "give", "spawn", "travel", "quests", "world", "tuning", "debug", "autoplay"];
 var CHEATS = [["god", ["god"]], ["mp", ["mp"]], ["sp", ["sp"]], ["arrows", ["arrows", "picks"]], ["noclip", ["noclip"]], ["invisible", ["invisible"]], ["onehit", ["onehit"]], ["craft", ["craft"]], ["noshoutcd", ["noshoutcd"]], ["nocarry", ["nocarry"]]];
@@ -31852,7 +32120,7 @@ function travel(world, x, y) {
   bus.emit("autosave");
 }
 function rows() {
-  const st = S5(), t = TABS2[tab];
+  const st = S6(), t = TABS2[tab];
   if (t === "cheats")
     return CHEATS.map(([id, ks]) => ({ l: "dev.cheat." + id, v: on(st.cheats[ks[0]]), pick: () => {
       const v = !st.cheats[ks[0]];
@@ -32703,7 +32971,7 @@ function jailDays(bounty) {
 // src/ui/screens.js
 init_character();
 init_core();
-var S6 = () => ctx.state;
+var S7 = () => ctx.state;
 var P7 = () => ctx.player;
 function quickMenu() {
   return open({
@@ -32715,7 +32983,7 @@ function quickMenu() {
       s.list = el("div", "list", m);
     },
     items(s) {
-      const st = S6();
+      const st = S7();
       if (!st.favs.length) {
         el("div", "row off", s.list, T("quick.none"));
         return [];
@@ -32736,7 +33004,7 @@ function quickMenu() {
   });
 }
 function favName(f) {
-  const st = S6();
+  const st = S7();
   if (f.startsWith("item:")) {
     const it = byUid(st, +f.slice(5));
     return it ? itemName(it) : "";
@@ -32767,7 +33035,7 @@ function containerScreen(contents, o = {}) {
     },
     items(s) {
       if (tab === 1) {
-        const mine = S6().inv.filter((it) => !get("item", it.id).quest && !Object.values(S6().eq).includes(it.uid));
+        const mine = S7().inv.filter((it) => !get("item", it.id).quest && !Object.values(S7().eq).includes(it.uid));
         if (!mine.length)
           el("div", "row off", s.list, T("container.empty"));
         return mine.map((it) => ({ el: row(s.list, itemName(it), it.n > 1 ? "×" + num(it.n) : ""), e: [it.id, it.n, { tier: it.tier }], onPick: () => {
@@ -32818,7 +33086,7 @@ function containerScreen(contents, o = {}) {
       bus.emit("note", { id: "note.pack_full" });
       return;
     }
-    removeItem(S6(), it.uid, 1);
+    removeItem(S7(), it.uid, 1);
     const e = contents.find((c) => c[0] === it.id && (c[2] || {}).tier === it.tier);
     if (e)
       e[1]++;
@@ -32830,10 +33098,10 @@ function containerScreen(contents, o = {}) {
     const [id, n, opt] = contents[k];
     contents.splice(k, 1);
     if (id === "gold") {
-      S6().gold += n;
+      S7().gold += n;
       bus.emit("take", { id: "gold", n });
     } else
-      addItem(S6(), id, n, { stolen: steal || opt && opt.stolen, tier: opt && opt.tier });
+      addItem(S7(), id, n, { stolen: steal || opt && opt.stolen, tier: opt && opt.tier });
     if (steal) {
       bus.emit("steal", { id, n, value: id === "gold" ? n : get("item", id).v * n, owner: o.owner });
     }
@@ -32844,7 +33112,7 @@ function containerScreen(contents, o = {}) {
 }
 function barterScreen(m) {
   let tab = 0;
-  const st = S6();
+  const st = S7();
   return open({
     id: "barter",
     build(s) {
@@ -32928,7 +33196,7 @@ function barterScreen(m) {
   }
 }
 function pickpocketScreen(b, pockets) {
-  const st = S6(), lf = perkRank(st, "light_fingers");
+  const st = S7(), lf = perkRank(st, "light_fingers");
   return open({
     id: "pickpocket",
     build(s) {
@@ -32975,7 +33243,7 @@ function pickpocketScreen(b, pockets) {
 function bookScreen(id) {
   const d = get("item", id);
   let page = 0;
-  const pages = d.pages || 1, first = readBook(S6(), id);
+  const pages = d.pages || 1, first = readBook(S7(), id);
   return open({
     id: "book",
     cls: "dim",
@@ -33026,11 +33294,11 @@ function waitScreen(o = {}) {
     build(s) {
       const m = el("div", "modal panel", s.root);
       el("h2", "", m, T(o.sleep ? "wait.sleep" : "wait.title"));
-      el("p", "muted", m, T("wait.now", { day: day(), time: hm(S6().time) }));
+      el("p", "muted", m, T("wait.now", { day: day(), time: hm(S7().time) }));
       s.list = el("div", "list", m);
     },
     items(s) {
-      const r = row(s.list, T("wait.hours", { count: hours }), "◂  " + hm(S6().time + hours * 60) + "  ▸");
+      const r = row(s.list, T("wait.hours", { count: hours }), "◂  " + hm(S7().time + hours * 60) + "  ▸");
       return [{ el: r, onLeft: () => {
         hours = Math.max(1, hours - 1);
         s.rebuild();
@@ -33050,7 +33318,7 @@ var hm = (t) => {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 };
 function passHours(h, sleep) {
-  const st = S6();
+  const st = S7();
   st.time += h * 60;
   if (sleep) {
     st.hp = maxOf(st, "hp");
@@ -33105,7 +33373,7 @@ init_text();
 init_inventory();
 init_character();
 function lockScreen(level, onOpen, o = {}) {
-  const st = S7(), rnd = ctx.rng || Math.random, spot = (rnd() * 2 - 1) * 80, w = sweetSpot(level, st.skills.theft.lv, hasPerk(st, "lock_sense")), life = pickLife(level, hasPerk(st, "lock_sense"), hasPerk(st, "master_thief"));
+  const st = S8(), rnd = ctx.rng || Math.random, spot = (rnd() * 2 - 1) * 80, w = sweetSpot(level, st.skills.theft.lv, hasPerk(st, "lock_sense")), life = pickLife(level, hasPerk(st, "lock_sense"), hasPerk(st, "master_thief"));
   const L = { a: 0, turn: 0, strain: 0, shake: 0, broke: 0 };
   if (count(st, "lock_pick") < 1 && !st.cheats.picks) {
     bus.emit("note", { id: "note.need_pick" });
@@ -33191,7 +33459,7 @@ function lockScreen(level, onOpen, o = {}) {
   L.w = w;
   return scr;
 }
-var S7 = () => ctx.state;
+var S8 = () => ctx.state;
 function draw(s, L) {
   const g = s.cv.getContext("2d"), W = 400, c = W / 2, sh = L.shake ? (Math.random() - 0.5) * 6 : 0, rot = L.turn * Math.PI / 2;
   g.clearRect(0, 0, W, W);
@@ -33245,9 +33513,9 @@ function draw(s, L) {
 
 // src/world/kinds.js
 init_core();
-var S8 = () => ctx.state;
+var S9 = () => ctx.state;
 function contentsOf(t) {
-  const st = S8();
+  const st = S9();
   if (st.containers[t.cid])
     return st.containers[t.cid];
   const r = rng(hashStr(t.cid));
@@ -33267,18 +33535,18 @@ function contentsOf(t) {
 var owned = (t) => !!t.owner && !(t.ownerFree && t.ownerFree());
 function setupKinds() {
   kindOf("container", {
-    verb: (t) => T(t.lock && !S8().unlocked[t.id] ? "prompt.unlock" : owned(t) ? "prompt.steal" : "prompt.open"),
+    verb: (t) => T(t.lock && !S9().unlocked[t.id] ? "prompt.unlock" : owned(t) ? "prompt.steal" : "prompt.open"),
     name: (t) => T(t.name || "thing.chest"),
     steal: (t) => owned(t),
-    extra: (t) => t.lock && !S8().unlocked[t.id] ? T("lock." + t.lock) : "",
+    extra: (t) => t.lock && !S9().unlocked[t.id] ? T("lock." + t.lock) : "",
     use(t, P) {
-      if (t.lock && !S8().unlocked[t.id]) {
-        if (t.key && count(S8(), t.key)) {
-          S8().unlocked[t.id] = true;
+      if (t.lock && !S9().unlocked[t.id]) {
+        if (t.key && count(S9(), t.key)) {
+          S9().unlocked[t.id] = true;
           bus.emit("note", { id: "note.unlocked" });
         } else {
           lockScreen(t.lock, () => {
-            S8().unlocked[t.id] = true;
+            S9().unlocked[t.id] = true;
             bus.emit("lock_opened", { thing: t });
             if (owned(t))
               bus.emit("crime_try", { kind: "lockpick", thing: t });
@@ -33311,7 +33579,7 @@ function setupKinds() {
     bus.emit("voice_stone", { thing: t, word: t.word, player: P });
   } });
   kindOf("stone", { verb: () => T("prompt.touch"), name: (t) => T("stone." + t.stone), use(t) {
-    S8().stone = t.stone;
+    S9().stone = t.stone;
     bus.emit("stone", { stone: t.stone });
     bus.emit("note", { id: "note.blessing", v: { stone: T("stone." + t.stone) } });
     ctx.audio && ctx.audio.sting("word");
@@ -33320,11 +33588,11 @@ function setupKinds() {
     verb: (t) => T(t.owner ? "prompt.steal" : "prompt.harvest"),
     name: (t) => itemName({ id: t.ing }),
     steal: (t) => !!t.owner,
-    can: (t) => !(S8().looted[t.id] > S8().time),
+    can: (t) => !(S9().looted[t.id] > S9().time),
     use(t) {
-      const n = hasPerk(S8(), "herbalist") && !t.item ? 2 : 1;
-      addItem(S8(), t.ing, n, { stolen: !!t.owner });
-      S8().looted[t.id] = S8().time + (t.regrow || 2) * 1440;
+      const n = hasPerk(S9(), "herbalist") && !t.item ? 2 : 1;
+      addItem(S9(), t.ing, n, { stolen: !!t.owner });
+      S9().looted[t.id] = S9().time + (t.regrow || 2) * 1440;
       if (t.owner)
         bus.emit("steal", { id: t.ing, n, value: get("item", t.ing).v, owner: t.owner });
       bus.emit("harvest", { id: t.ing });
@@ -33334,9 +33602,9 @@ function setupKinds() {
   kindOf("ore", {
     verb: () => T("prompt.mine"),
     name: (t) => itemName({ id: t.ore }),
-    can: (t) => !(S8().looted[t.id] > S8().time),
+    can: (t) => !(S9().looted[t.id] > S9().time),
     use(t, P) {
-      if (!count(S8(), "pickaxe") && !S8().cheats.craft) {
+      if (!count(S9(), "pickaxe") && !S9().cheats.craft) {
         bus.emit("note", { id: "note.need_pickaxe" });
         return;
       }
@@ -33344,8 +33612,8 @@ function setupKinds() {
       ctx.audio && ctx.audio.sfx("mine");
       ctx.game.after(0.9, () => {
         P.frozen = false;
-        addItem(S8(), t.ore, 1);
-        S8().looted[t.id] = S8().time + 4 * 1440;
+        addItem(S9(), t.ore, 1);
+        S9().looted[t.id] = S9().time + 4 * 1440;
         bus.emit("mined", { id: t.ore });
       });
     }
@@ -33369,7 +33637,7 @@ function setupKinds() {
   } });
   kindOf("book", { verb: () => T("prompt.read"), name: (t) => itemName({ id: t.book }), steal: (t) => !!t.owner, use(t) {
     if (t.take) {
-      addItem(S8(), t.book, 1, { stolen: !!t.owner });
+      addItem(S9(), t.book, 1, { stolen: !!t.owner });
       removeThing(t);
       if (t.owner)
         bus.emit("steal", { id: t.book, n: 1, value: get("item", t.book).v, owner: t.owner });
@@ -33382,18 +33650,18 @@ function setupKinds() {
     steal: (t) => !!t.stolenOwner,
     use(t) {
       if (t.item === "gold")
-        S8().gold += t.n;
+        S9().gold += t.n;
       else
-        addItem(S8(), t.item, t.n, { stolen: t.stolen || !!t.stolenOwner, tier: t.tier });
+        addItem(S9(), t.item, t.n, { stolen: t.stolen || !!t.stolenOwner, tier: t.tier });
       removeThing(t);
-      S8().dropped = S8().dropped.filter((d) => d.id !== t.id);
+      S9().dropped = S9().dropped.filter((d) => d.id !== t.id);
       if (t.stolenOwner)
         bus.emit("steal", { id: t.item, n: t.n, value: get("item", t.item).v, owner: t.stolenOwner });
       bus.emit("pick_up", { id: t.item, thing: t });
     }
   });
   kindOf("arrow", { verb: () => T("prompt.take"), name: (t) => itemName({ id: t.item }), use(t) {
-    addItem(S8(), t.item, 1);
+    addItem(S9(), t.item, 1);
     removeThing(t);
   } });
   kindOf("carry", {
@@ -33463,13 +33731,13 @@ function setupKinds() {
     if (!P)
       return;
     const t = addThing({ kind: "dropped", world: ctx.worldId, x: P.a.x + Math.cos(P.yaw) * 10, y: P.a.y + Math.sin(P.yaw) * 10, z: P.a.z + 4, item: e.id, n: 1, stolen: e.stolen, tier: e.tier });
-    S8().dropped.push({ id: t.id, item: e.id, n: 1, x: t.x, y: t.y, z: t.z, world: t.world, stolen: e.stolen, tier: e.tier });
+    S9().dropped.push({ id: t.id, item: e.id, n: 1, x: t.x, y: t.y, z: t.z, world: t.world, stolen: e.stolen, tier: e.tier });
   });
   bus.on("load", () => restoreDropped());
   bus.on("new_game", () => restoreDropped());
 }
 var bedFree = (t) => {
-  const st = S8();
+  const st = S9();
   return t.owner === "player" || st.flags.rented && st.flags.rented[t.world] > st.time || !["pine_hearth", "antler_inn"].includes(t.world);
 };
 var behind = (b, P) => {
@@ -33482,7 +33750,7 @@ function restoreDropped() {
   for (let i = things.length - 1;i >= 0; i--)
     if (things[i].kind === "dropped")
       things.splice(i, 1);
-  for (const d of S8().dropped || [])
+  for (const d of S9().dropped || [])
     addThing({ kind: "dropped", id: d.id, world: d.world, x: d.x, y: d.y, z: d.z, item: d.item, n: d.n, stolen: d.stolen, tier: d.tier });
 }
 
@@ -33498,14 +33766,14 @@ init_ai();
 init_core();
 init_interact();
 init_inventory();
-var S9 = () => ctx.state;
+var S10 = () => ctx.state;
 var P8 = () => ctx.player;
 var GROUPS3 = [];
 function group(g) {
   GROUPS3.push(Object.assign({ r: 170, spawned: false, members: [] }, g));
 }
 function stepGroups() {
-  const st = S9(), Pl = P8();
+  const st = S10(), Pl = P8();
   if (!Pl)
     return;
   for (const g of GROUPS3) {
@@ -33545,12 +33813,12 @@ function stepGroups() {
 }
 bus.on("kill", (e) => {
   const b = e.target;
-  if (!S9() || !b.id)
+  if (!S10() || !b.id)
     return;
   if (b.group || b.unique || /^npc_|^guard_/.test(b.id))
-    S9().killed[b.id] = true;
+    S10().killed[b.id] = true;
   if (b.kind !== "player")
-    S9().stats.kills += e.src && e.src.kind === "player" ? 1 : 0;
+    S10().stats.kills += e.src && e.src.kind === "player" ? 1 : 0;
 });
 function resetGroups() {
   for (const g of GROUPS3) {
@@ -33583,7 +33851,7 @@ function stepWild(dt) {
     }
     return true;
   });
-  const st = S9(), night = ctx.night > 0.5, r = ctx.rng || Math.random;
+  const st = S10(), night = ctx.night > 0.5, r = ctx.rng || Math.random;
   if (wild.filter((b) => b.alive).length >= 7)
     return;
   const ang = r() * Math.PI * 2, d = 90 + r() * 120, m = Pl.a.x / U + Math.cos(ang) * d, n = Pl.a.y / U + Math.sin(ang) * d;
@@ -33609,7 +33877,7 @@ bus.on("load", resetWild);
 bus.on("new_game", resetWild);
 bus.on("world_reset", resetWild);
 function learnWord(word, free) {
-  const st = S9();
+  const st = S10();
   if (st.words[word] === "free")
     return false;
   const fresh = !st.words[word];
@@ -33626,7 +33894,7 @@ function voiceStone2(e) {
   const { thing: t, player: Pl } = e;
   if (!Pl)
     return;
-  const already = !!S9().words[t.word];
+  const already = !!S10().words[t.word];
   if (already) {
     bus.emit("note", { id: "note.word_known" });
     return;
@@ -33643,12 +33911,12 @@ function voiceStone2(e) {
     Pl.frozen = false;
     learnWord(t.word, false);
     if (t.word === "var" || t.word === "brask")
-      addItem(S9(), "runes_copy", t.word === "var" && !count(S9(), "runes_copy") ? 1 : 0);
+      addItem(S10(), "runes_copy", t.word === "var" && !count(S10(), "runes_copy") ? 1 : 0);
     bus.emit("voice_stone_read", { word: t.word });
   });
 }
 function takeSoul(d) {
-  const Pl = P8(), st = S9();
+  const Pl = P8(), st = S10();
   if (!Pl || !d.soul || ctx.mode.kind !== "campaign")
     return;
   const t0 = ctx.game.real, q = { x: d.a.x, y: d.a.y, z: d.a.z };
@@ -33701,11 +33969,11 @@ function buildBarrow(W) {
     BARROW.lever = addThing({ kind: "lever", world: "ravenmound_barrow", x: lv.x, y: lv.y, z: lv.z + 12, barrow: true });
   const ex = (mk.exit || [])[0];
   if (ex)
-    BARROW.exitDoor = addThing({ kind: "door", world: "ravenmound_barrow", x: ex.x + 1.2 * M, y: ex.y, z: ex.z + 12, to: "hrimdal", from: "ravenmound_barrow", name: "place.hrimdal", lockedMsg: "note.door_stuck", locked: !S9().flags.barrowExit, exitTo: { x: ctx.placeMarks.ravenmound.exit.x, y: ctx.placeMarks.ravenmound.exit.y, facing: Math.PI / 2 } });
+    BARROW.exitDoor = addThing({ kind: "door", world: "ravenmound_barrow", x: ex.x + 1.2 * M, y: ex.y, z: ex.z + 12, to: "hrimdal", from: "ravenmound_barrow", name: "place.hrimdal", lockedMsg: "note.door_stuck", locked: !S10().flags.barrowExit, exitTo: { x: ctx.placeMarks.ravenmound.exit.x, y: ctx.placeMarks.ravenmound.exit.y, facing: Math.PI / 2 } });
   const tab = (mk.tablet || [])[0];
   if (tab)
     addThing({ kind: "book", world: "ravenmound_barrow", x: tab.x, y: tab.y + M, z: tab.z + 14, book: "book_barrow_notes" });
-  const st = S9();
+  const st = S10();
   if (st.flags.barrowGate)
     openGate(true);
   if (st.flags.barrowExit && BARROW.exitDoor)
@@ -33770,7 +34038,7 @@ function brazier(e) {
     return;
   }
   if (BARROW.lit.length === 4) {
-    S9().flags.barrowGate = true;
+    S10().flags.barrowGate = true;
     openGate();
     bus.emit("barrow_gate", {});
   }
@@ -33887,11 +34155,11 @@ function stepTrials(dt) {
   const open = TRIAL.gateT % 6 < 0.9;
   pm.gateOpen = open;
   const g = pm.gate, near = Math.abs(Pl.a.x - g.x) < 2.2 * M && Math.abs(Pl.a.y - g.y) < 1.2 * M;
-  if (near && !open && !Pl.rush && !S9().flags.trialRush) {
+  if (near && !open && !Pl.rush && !S10().flags.trialRush) {
     Pl.a.vy = Math.sign(Pl.a.y - g.y || 1) * 120;
   }
-  if (near && Pl.rush && !S9().flags.trialRush) {
-    S9().flags.trialRush = true;
+  if (near && Pl.rush && !S10().flags.trialRush) {
+    S10().flags.trialRush = true;
     bus.emit("trial", { trial: "rush" });
   }
 }
@@ -33909,7 +34177,7 @@ bus.on("shout", (e) => {
       t.down = 1;
       ctx.game.particles.dust(t.x, t.y, t.z, 12, { speed: 80 });
       if (TRIAL.targets.every(Boolean)) {
-        S9().flags.trialPush = true;
+        S10().flags.trialPush = true;
         bus.emit("trial", { trial: "push" });
       }
     }
@@ -33921,11 +34189,11 @@ function drawTrials(world) {
     return;
   const pen = world.pen;
   pm.targets.forEach((t, i) => {
-    const down = TRIAL.targets[i] || S9().flags.trialPush;
+    const down = TRIAL.targets[i] || S10().flags.trialPush;
     pen.at(t.x, t.y, t.z - 0.4 * M, 0, 1, down ? 1.4 : 0);
     pen.box(0, 0, 1.4 * M, 0.9 * M, 0.9 * M, 2.6 * M, "#8a8690").box(0, 0, 2.9 * M, 1.1 * M, 1.1 * M, 0.3 * M, "#6e6a72");
   });
-  const g = pm.gate, open = pm.gateOpen || S9().flags.trialRush;
+  const g = pm.gate, open = pm.gateOpen || S10().flags.trialRush;
   pen.at(g.x, g.y, g.z + (open ? 3.2 * M : 0));
   for (let k = -2;k <= 2; k++)
     pen.box(k * 0.9 * M, 0, 1.6 * M, 0.18 * M, 0.18 * M, 3.4 * M, "#4a4752");
@@ -33934,7 +34202,7 @@ function drawTrials(world) {
 var flyT = 600;
 var fly = null;
 function stepFlyby(dt) {
-  const st = S9();
+  const st = S10();
   if (!st.flags.mq4Done || ctx.worldId !== "hrimdal" || !P8())
     return;
   if (fly) {
@@ -33964,7 +34232,7 @@ function drawFlyby(world) {
     pen.tri(1.5 * M, 0, 0, -1.5 * M, 0, 0, -0.5 * M, s * 8 * M, w, "#2a1410");
 }
 function stepGrey() {
-  const st = S9();
+  const st = S10();
   if (!ctx.Q || !ctx.Q.done("mq5") || st.killed.dragon_grey || ctx.worldId !== "hrimdal" || !P8())
     return;
   if (dragons.some((d) => d.dk === "grey"))
@@ -34012,7 +34280,7 @@ function setupEvents() {
   bus.on("anchor_fire", anchorFire);
   bus.on("lever", (e) => {
     if (e.thing.barrow) {
-      S9().flags.barrowExit = true;
+      S10().flags.barrowExit = true;
       if (BARROW.exitDoor)
         BARROW.exitDoor.locked = false;
       bus.emit("note", { id: "note.door_open" });
@@ -34092,7 +34360,7 @@ function setupEvents() {
   defineGroups();
 }
 function defineGroups() {
-  const st = () => S9();
+  const st = () => S10();
   group({ id: "mill_wolves", world: "hrimdal", at: [500, 1080], r: 150, when: () => ctx.Q && ctx.Q.active("sq01"), list: [["wolf", 0, 0], ["wolf", 6, 4], ["wolf", -5, 6]] });
   group({ id: "waste_wolves", world: "hrimdal", at: [760, 220], r: 200, list: [["wolf", 0, 0], ["wolf", 5, 3], ["wolf", -4, 5], ["deer", 40, -20], ["deer", 44, -16]] });
   group({ id: "greytooth", world: "hrimdal", at: [1110, 450], r: 160, list: [["wolf", -20, 40], ["wolf", -16, 44], ["rock_troll", 20, -40, { facing: 2 }]] });
@@ -34107,161 +34375,6 @@ function defineGroups() {
   group({ id: "mine", world: "silvervein_mine", list: [["frost_spider", 0, 0, { mark: "enemy" }], ["frost_spider", 0, 0, { mark: "enemy", i: 1 }], ["frost_spider", 0, 0, { mark: "enemy2" }], ["frost_spider", 0, 0, { mark: "enemy", i: 2 }]] });
   group({ id: "ravens", world: "hrimdal", at: [300, 760], r: 250, list: [["raven", 0, -10, { z: 300 * U }], ["raven", 10, 0, { z: 300 * U }]] });
   group({ id: "ravens2", world: "hrimdal", at: [1045, 1138], r: 250, list: [["raven", 0, 0, { z: 300 * U }]] });
-}
-
-// src/quests/runtime.js
-init_ctx();
-init_bus();
-init_text();
-init_registry();
-init_inventory();
-init_core();
-var S10 = () => ctx.state;
-var Q2 = {
-  stage: (id) => (S10() && S10().quests[id] || {}).stage || 0,
-  active: (id) => !!(S10() && S10().quests[id] && !S10().quests[id].done),
-  done: (id) => !!(S10() && S10().quests[id] && S10().quests[id].done),
-  at: (id, n) => Q2.active(id) && Q2.stage(id) === n,
-  start(id, stage) {
-    const st = S10();
-    if (st.quests[id])
-      return false;
-    const q = get("quest", id);
-    stage = stage || Math.min(...Object.keys(q.stages).map(Number));
-    st.quests[id] = { stage, done: false, log: [[stage, false]], t: st.time };
-    ctx.tracked = id;
-    bus.emit("quest", { id, stage, started: true });
-    bus.emit("note", { id: "note.quest_new", v: { quest: T("quest." + id + ".title") } });
-    const sg = q.stages[stage];
-    if (sg && sg.onEnter)
-      sg.onEnter();
-    return true;
-  },
-  set(id, stage) {
-    const st = S10();
-    if (!st.quests[id])
-      Q2.start(id, stage);
-    const R = st.quests[id];
-    if (R.done || R.stage === stage)
-      return;
-    for (const l of R.log)
-      l[1] = true;
-    R.stage = stage;
-    R.log.push([stage, false]);
-    ctx.tracked = id;
-    const q = get("quest", id), sg = q.stages[stage];
-    bus.emit("quest", { id, stage });
-    if (ctx.hud && ctx.mode.kind === "campaign")
-      ctx.hud.msg(T("quest." + id + ".s" + stage), "gold");
-    if (sg && sg.onEnter)
-      sg.onEnter();
-    bus.emit("autosave");
-  },
-  complete(id) {
-    const st = S10();
-    if (!st.quests[id])
-      Q2.start(id);
-    const R = st.quests[id];
-    if (R.done)
-      return;
-    R.done = true;
-    for (const l of R.log)
-      l[1] = true;
-    st.stats.quests++;
-    const q = get("quest", id), rw = q.rewards || {};
-    if (rw.gold) {
-      st.gold += rw.gold;
-      bus.emit("take", { id: "gold", n: rw.gold });
-    }
-    for (const [it, n] of rw.items || [])
-      addItem(st, it, n);
-    if (rw.fn)
-      rw.fn();
-    bus.emit("quest", { id, done: true });
-    bus.emit("banner", { id: "note.quest_done", v: { quest: T("quest." + id + ".title") } });
-    ctx.audio && ctx.audio.sting("quest");
-    if (ctx.tracked === id)
-      ctx.tracked = Object.keys(st.quests).find((k) => !st.quests[k].done) || null;
-    bus.emit("autosave");
-  },
-  reset(id) {
-    delete S10().quests[id];
-    bus.emit("quest", { id, reset: true });
-  }
-};
-function questList(done) {
-  const st = S10();
-  return Object.entries(st.quests).filter(([, r]) => !!r.done === done).map(([id, r]) => ({ id, main: !!get("quest", id).main, log: r.log })).sort((a, b) => b.main - a.main || st.quests[b.id].t - st.quests[a.id].t);
-}
-function questMarkers(onlyTracked) {
-  const st = S10(), out = [];
-  for (const [id, R] of Object.entries(st.quests)) {
-    if (R.done || onlyTracked && id !== ctx.tracked && !get("quest", id).main)
-      continue;
-    const sg = get("quest", id).stages[R.stage];
-    if (!sg || !sg.marker)
-      continue;
-    let m = sg.marker();
-    if (!m)
-      continue;
-    if (!Array.isArray(m))
-      m = [m];
-    for (const p of m) {
-      const q = resolve(p);
-      if (q)
-        out.push(Object.assign({ kind: "quest", id }, q));
-    }
-  }
-  return out;
-}
-function resolve(p) {
-  let world = p.world || "hrimdal", { x, y } = p, z = p.z || 0;
-  if (p.npc) {
-    const b = ctx.people && ctx.people.get(p.npc);
-    if (b && b.a) {
-      world = b.world;
-      x = b.a.x;
-      y = b.a.y;
-      z = b.a.z;
-    } else if (p.fallback)
-      return resolve(p.fallback);
-    else
-      return null;
-  }
-  if (p.being) {
-    if (!p.being.alive && !p.dead)
-      return null;
-    world = p.being.world || ctx.worldId;
-    const q = posOf(p.being);
-    x = q.x;
-    y = q.y;
-    z = q.z;
-  }
-  if (p.place) {
-    const pl = ctx.placeMarks && ctx.placeMarks[p.place];
-    const P = pl ? pl.P : null;
-    if (!P)
-      return null;
-    x = P.x * 16;
-    y = P.y * 16;
-    world = "hrimdal";
-  }
-  if (world === ctx.worldId)
-    return { x, y, z, world };
-  if (ctx.worldId === "hrimdal") {
-    const d = ctx.thingsOutside && ctx.thingsOutside(world);
-    return d ? { x: d.x, y: d.y, z: d.z, world: "hrimdal" } : null;
-  }
-  const exit = ctx.interiorMarks && ctx.interiorMarks[ctx.worldId] && ctx.interiorMarks[ctx.worldId].entry && ctx.interiorMarks[ctx.worldId].entry[0];
-  return exit ? { x: exit.x, y: exit.y, z: exit.z, world: ctx.worldId } : null;
-}
-function setupQuests() {
-  ctx.questList = questList;
-  ctx.questMarkers = () => questMarkers(false).filter((m) => m.world === "hrimdal" || ctx.worldId === "hrimdal");
-  ctx.trackQuest = (id) => {
-    ctx.tracked = id;
-  };
-  ctx.Q = Q2;
 }
 
 // src/quests/index.js
@@ -34443,7 +34556,7 @@ quest("mq1", { stages: {
   } }
 }, rewards: { fn() {
   flag("at_holger", null);
-  Q2.start("mq2");
+  Q.start("mq2");
 } } });
 function dragonAttack() {
   const c = CART(), Pl = P9();
@@ -34464,9 +34577,9 @@ function dragonAttack() {
 }
 function stepMQ1(dt) {
   const st = S11(), Pl = P9();
-  if (!Pl || ctx.worldId !== "hrimdal" || !Q2.active("mq1"))
+  if (!Pl || ctx.worldId !== "hrimdal" || !Q.active("mq1"))
     return;
-  const s = Q2.stage("mq1");
+  const s = Q.stage("mq1");
   mq1.t += dt;
   if (s === 10) {
     if (!st.tutorial.move)
@@ -34483,7 +34596,7 @@ function stepMQ1(dt) {
     if (mq1.walk) {
       mq1.wt += dt;
       if (mq1.wt > 5 && distM(WALK()) < 14)
-        Q2.set("mq1", 20);
+        Q.set("mq1", 20);
     }
     if (!mq1.walk && mq1.t > 90) {
       mq1.walk = true;
@@ -34523,8 +34636,8 @@ function stepMQ1(dt) {
       d.t = 0;
       ctx.audio && ctx.audio.sfx("roar", d.a);
       ctx.game.after(7, () => {
-        if (Q2.at("mq1", 20))
-          Q2.set("mq1", 30);
+        if (Q.at("mq1", 20))
+          Q.set("mq1", 30);
       });
       ctx.game.after(25, () => {
         if (dragons.includes(d))
@@ -34554,7 +34667,7 @@ function stepMQ1(dt) {
       tut("power");
   } else if (s === 60) {
     if (nearPlace2("pinewater", 75))
-      Q2.complete("mq1");
+      Q.complete("mq1");
   }
 }
 bus.on("quest", (e) => {
@@ -34567,26 +34680,26 @@ bus.on("weapon_rack", (e) => {
   const st = S11();
   const c = st.containers.mq1_cart || (st.containers.mq1_cart = [["iron_axe", 1, {}], ["hunting_bow", 1, {}], ["iron_arrow", 15, {}], ["bread", 2, {}]]);
   containerScreen(c, { title: T("thing.cart"), onTake: (id) => {
-    if (get("item", id).cat === "weapon" && Q2.at("mq1", 30)) {
-      Q2.set("mq1", 40);
+    if (get("item", id).cat === "weapon" && Q.at("mq1", 30)) {
+      Q.set("mq1", 40);
       ctx.game.after(0.3, () => tut("equip"));
     }
   } });
 });
 bus.on("kill", (e) => {
-  if (e.target.id === "mq1_wolf" && Q2.at("mq1", 40))
-    Q2.set("mq1", 50);
+  if (e.target.id === "mq1_wolf" && Q.at("mq1", 40))
+    Q.set("mq1", 50);
 });
 bus.on("stone", () => {
-  if (Q2.at("mq1", 50))
-    Q2.set("mq1", 60);
+  if (Q.at("mq1", 50))
+    Q.set("mq1", 60);
 });
 quest("mq2", { stages: {
   10: { marker: () => ({ npc: "gyda", fallback: { place: "pinewater" } }) },
   20: { marker: () => ({ npc: "ylva", fallback: { place: "greystead" } }) },
   30: { marker: () => ({ npc: "eyvind", fallback: { place: "greystead" } }) }
 }, rewards: { fn() {
-  Q2.start("mq3");
+  Q.start("mq3");
 } } });
 var barrowMark = (k, i = 0) => {
   const m = ctx.interiorMarks && ctx.interiorMarks.ravenmound_barrow && (ctx.interiorMarks.ravenmound_barrow[k] || [])[i];
@@ -34605,37 +34718,37 @@ quest("mq3", { stages: {
   50: { marker: () => barrowMark("voice") },
   60: { marker: () => ({ npc: "eyvind", fallback: { place: "greystead" } }) }
 }, rewards: { fn() {
-  Q2.start("mq4");
+  Q.start("mq4");
   flag("at_leif", ["long_hall", "npc4", 0]);
   ctx.game.after(0.8, () => say2("leif", "dlg.leif.run_in"));
 } } });
 bus.on("enter", (e) => {
-  if (e.world === "ravenmound_barrow" && Q2.at("mq3", 10))
-    Q2.set("mq3", 20);
+  if (e.world === "ravenmound_barrow" && Q.at("mq3", 10))
+    Q.set("mq3", 20);
 });
 function stepMQ3() {
-  if (!Q2.at("mq3", 20) || ctx.worldId !== "ravenmound_barrow")
+  if (!Q.at("mq3", 20) || ctx.worldId !== "ravenmound_barrow")
     return;
   const m = barrowMark("brazier", 0);
   if (m.world && distM(m) < 12)
-    Q2.set("mq3", 30);
+    Q.set("mq3", 30);
 }
 bus.on("barrow_gate", () => {
-  if (Q2.active("mq3") && Q2.stage("mq3") < 40)
-    Q2.set("mq3", 40);
+  if (Q.active("mq3") && Q.stage("mq3") < 40)
+    Q.set("mq3", 40);
 });
 bus.on("kill", (e) => {
-  if (e.target.def && e.target.def.id === "barrow_lord" && Q2.active("mq3"))
-    Q2.set("mq3", 50);
+  if (e.target.def && e.target.def.id === "barrow_lord" && Q.active("mq3"))
+    Q.set("mq3", 50);
 });
 bus.on("voice_stone_read", (e) => {
   if (e.word === "var") {
     if (!count(S11(), "runes_copy"))
       addItem(S11(), "runes_copy", 1);
-    if (Q2.active("mq3"))
-      Q2.set("mq3", 60);
+    if (Q.active("mq3"))
+      Q.set("mq3", 60);
   }
-  if (e.word === "brask" && Q2.active("mq6"))
+  if (e.word === "brask" && Q.active("mq6"))
     bus.emit("note", { id: "note.word_needs_soul" });
 });
 var red = () => dragons.find((d) => d.id === "dragon_red");
@@ -34662,11 +34775,11 @@ quest("mq4", { stages: {
     ctx.game.shake(4);
     bus.emit("banner", { id: "note.mountain_call" });
     ctx.audio && ctx.audio.shout("push", 1, true);
-    Q2.start("mq5");
+    Q.start("mq5");
   });
 } } });
 function stepMQ4() {
-  if (!Q2.at("mq4", 10) || ctx.worldId !== "hrimdal")
+  if (!Q.at("mq4", 10) || ctx.worldId !== "hrimdal")
     return;
   if (!nearPlace2("north_watch", 200) || red())
     return;
@@ -34680,28 +34793,28 @@ function stepMQ4() {
     g.data.npc = "guard";
     g.data.nwGuard = true;
   }
-  Q2.set("mq4", 20);
+  Q.set("mq4", 20);
 }
 bus.on("dragon_dead", (e) => {
-  if (e.dragon.id === "dragon_red" && Q2.active("mq4"))
-    Q2.set("mq4", 30);
-  if (e.dragon.id === "dragon_jarnorm" && Q2.active("mq6"))
-    Q2.set("mq6", 40);
+  if (e.dragon.id === "dragon_red" && Q.active("mq4"))
+    Q.set("mq4", 30);
+  if (e.dragon.id === "dragon_jarnorm" && Q.active("mq6"))
+    Q.set("mq6", 40);
 });
 bus.on("soul_taken", (e) => {
   const st = S11(), d = e.dragon;
-  if (d.id === "dragon_red" && Q2.active("mq4")) {
+  if (d.id === "dragon_red" && Q.active("mq4")) {
     if (st.words.var === "locked" && st.souls > 0) {
       st.souls--;
       st.words.var = "free";
       bus.emit("word_unlocked", { word: "var" });
       bus.emit("note", { id: "note.unlock_word", v: { word: T("word.var") } });
     }
-    Q2.set("mq4", 40);
+    Q.set("mq4", 40);
     ctx.game.after(3, () => tut("shout"));
   }
-  if (d.id === "dragon_jarnorm" && Q2.active("mq6"))
-    Q2.set("mq6", 50);
+  if (d.id === "dragon_jarnorm" && Q.active("mq6"))
+    Q.set("mq6", 50);
 });
 var hall = () => ctx.placeMarks && ctx.placeMarks.hall_of_echoes;
 quest("mq5", { stages: {
@@ -34719,14 +34832,14 @@ quest("mq5", { stages: {
   } },
   50: { marker: () => ({ npc: "halvar", fallback: { place: "hall_of_echoes" } }) }
 }, rewards: { fn() {
-  Q2.start("mq6");
+  Q.start("mq6");
   flag("greyFree", true);
 } } });
 bus.on("trial", (e) => {
-  if (e.trial === "push" && Q2.at("mq5", 30))
-    Q2.set("mq5", 40);
-  if (e.trial === "rush" && Q2.at("mq5", 40))
-    Q2.set("mq5", 50);
+  if (e.trial === "push" && Q.at("mq5", 30))
+    Q.set("mq5", 40);
+  if (e.trial === "rush" && Q.at("mq5", 40))
+    Q.set("mq5", 50);
 });
 var jar = () => dragons.find((d) => d.id === "dragon_jarnorm");
 var anchors = () => ctx.placeMarks && ctx.placeMarks.skyfang ? ctx.placeMarks.skyfang.anchors : [];
@@ -34754,10 +34867,10 @@ quest("mq6", { stages: {
 } } });
 var phase = 1;
 function stepMQ6(dt) {
-  if (ctx.worldId !== "hrimdal" || !Q2.active("mq6"))
+  if (ctx.worldId !== "hrimdal" || !Q.active("mq6"))
     return;
   const st = S11();
-  if (Q2.at("mq6", 10) && nearPlace2("skyfang", 170) && !jar() && !st.killed.dragon_jarnorm) {
+  if (Q.at("mq6", 10) && nearPlace2("skyfang", 170) && !jar() && !st.killed.dragon_jarnorm) {
     const p = placePt("skyfang", 4, -14), seen = ctx.detect && ctx.detect(P9()) >= 0.5;
     const d = makeDragon("jarnorm", p.x, p.y, { world: "hrimdal", id: "dragon_jarnorm", cx: p.x, cy: p.y, sleep: seen ? null : { x: p.x, y: p.y, z: p.z + 1.5 * M, yaw: Math.PI / 2 }, onDie: () => {
       st.killed.dragon_jarnorm = true;
@@ -34772,7 +34885,7 @@ function stepMQ6(dt) {
       return [c.x + Math.cos(a) * 14 * M, c.y + Math.sin(a) * 14 * M];
     };
     phase = 1;
-    Q2.set("mq6", 20);
+    Q.set("mq6", 20);
     bus.emit("autosave");
   }
   const d = jar();
@@ -34803,8 +34916,8 @@ function stepMQ6(dt) {
   }
 }
 bus.on("anchor_hit", () => {
-  if (Q2.at("mq6", 20))
-    Q2.set("mq6", 30);
+  if (Q.at("mq6", 20))
+    Q.set("mq6", 30);
 });
 bus.on("kill", (e) => {
   if (e.target.id === "dragon_jarnorm")
@@ -34827,7 +34940,7 @@ bus.on("campaign_start", (e) => {
   if (st.quests.mq1)
     return;
   flag("at_holger", OUTP("eastgate_pass", -9, 1));
-  Q2.start("mq1");
+  Q.start("mq1");
   bus.emit("banner", { id: "place.eastgate_pass", sub: "note.day_one" });
 });
 function setupMain() {
@@ -34837,8 +34950,8 @@ function setupMain() {
     stepMQ1(dt);
     stepMQ3();
     stepMQ4();
-    if (Q2.at("mq5", 10) && (nearPlace2("hall_of_echoes", 70) || ctx.worldId === "hall_of_echoes_in"))
-      Q2.set("mq5", 20);
+    if (Q.at("mq5", 10) && (nearPlace2("hall_of_echoes", 70) || ctx.worldId === "hall_of_echoes_in"))
+      Q.set("mq5", 20);
     stepMQ6(dt);
   });
   learnWord.ready = true;
@@ -34869,10 +34982,10 @@ quest2("sq01", { stages: {
 }, rewards: { gold: 60 } });
 bus.on("kill", (e) => {
   const g = e.target.group;
-  if (!g || g.id !== "mill_wolves" || !Q2.at("sq01", 10))
+  if (!g || g.id !== "mill_wolves" || !Q.at("sq01", 10))
     return;
   if (g.members.every((b) => !b.alive))
-    Q2.set("sq01", 20);
+    Q.set("sq01", 20);
 });
 quest2("sq02", { stages: {
   10: { marker: mark("silvervein_mine", "body") },
@@ -34892,30 +35005,30 @@ quest2("sq02", { stages: {
 bus.on("take", (e) => {
   if (!S11())
     return;
-  if (e.id === "bjarke_hammer_quest" && Q2.at("sq02", 10))
-    Q2.set("sq02", 20);
-  if (e.id === "iron_ore" && Q2.at("sq02", 20) && count(S11(), "iron_ore") >= 2)
-    Q2.set("sq02", 30);
+  if (e.id === "bjarke_hammer_quest" && Q.at("sq02", 10))
+    Q.set("sq02", 20);
+  if (e.id === "iron_ore" && Q.at("sq02", 20) && count(S11(), "iron_ore") >= 2)
+    Q.set("sq02", 30);
 });
 bus.on("mined", (e) => {
-  if (e.id === "iron_ore" && Q2.at("sq02", 20)) {
+  if (e.id === "iron_ore" && Q.at("sq02", 20)) {
     F3().sq02ore = (F3().sq02ore || 0) + 1;
     if (F3().sq02ore >= 2 || count(S11(), "iron_ore") >= 2)
-      Q2.set("sq02", 30);
+      Q.set("sq02", 30);
   }
 });
 bus.on("craft", (e) => {
-  if (e.item === "iron_bar" && Q2.at("sq02", 30)) {
+  if (e.item === "iron_bar" && Q.at("sq02", 30)) {
     F3().sq02bars = (F3().sq02bars || 0) + e.n;
     if (F3().sq02bars >= 2)
-      Q2.set("sq02", 40);
+      Q.set("sq02", 40);
   }
-  if (e.item === "iron_dagger" && e.recipe !== "improve" && Q2.at("sq02", 40))
-    Q2.set("sq02", 50);
-  if (e.recipe === "improve" && e.item === "iron_dagger" && Q2.at("sq02", 50))
-    Q2.set("sq02", 60);
-  if (e.item === "leather" && Q2.at("sq08", 30))
-    Q2.set("sq08", 40);
+  if (e.item === "iron_dagger" && e.recipe !== "improve" && Q.at("sq02", 40))
+    Q.set("sq02", 50);
+  if (e.recipe === "improve" && e.item === "iron_dagger" && Q.at("sq02", 50))
+    Q.set("sq02", 60);
+  if (e.item === "leather" && Q.at("sq08", 30))
+    Q.set("sq08", 40);
 });
 bus.on("interior_built", (e) => {
   if (e.id !== "silvervein_mine")
@@ -34939,10 +35052,10 @@ var frostPotion = () => S11().inv.find((it) => it.id === "potion_resist_frost" |
 function checkSq03() {
   if (!S11())
     return;
-  if (Q2.at("sq03", 10) && count(S11(), "frostberry") && count(S11(), "snow_lily"))
-    Q2.set("sq03", 20);
-  if (Q2.at("sq03", 20) && frostPotion())
-    Q2.set("sq03", 30);
+  if (Q.at("sq03", 10) && count(S11(), "frostberry") && count(S11(), "snow_lily"))
+    Q.set("sq03", 20);
+  if (Q.at("sq03", 20) && frostPotion())
+    Q.set("sq03", 30);
 }
 bus.on("take", () => checkSq03());
 bus.on("harvest", () => checkSq03());
@@ -34955,14 +35068,14 @@ quest2("sq04", { stages: {
   F3().fence = true;
 } } });
 bus.on("take", (e) => {
-  if (e.id === "steward_key" && Q2.at("sq04", 10))
-    Q2.set("sq04", 20);
-  if (e.id === "steward_ledger" && Q2.active("sq04") && Q2.stage("sq04") < 30)
-    Q2.set("sq04", 30);
+  if (e.id === "steward_key" && Q.at("sq04", 10))
+    Q.set("sq04", 20);
+  if (e.id === "steward_ledger" && Q.active("sq04") && Q.stage("sq04") < 30)
+    Q.set("sq04", 30);
 });
 bus.on("lock_opened", (e) => {
-  if (e.thing && e.thing.cid === "stewards_house_chest0" && Q2.at("sq04", 10))
-    Q2.set("sq04", 20);
+  if (e.thing && e.thing.cid === "stewards_house_chest0" && Q.at("sq04", 10))
+    Q.set("sq04", 20);
 });
 bus.on("interior_built", (e) => {
   if (e.id !== "stewards_house")
@@ -34973,7 +35086,7 @@ bus.on("interior_built", (e) => {
   Object.assign(c, { lock: "average", key: "steward_key", owner: "gunnar", items: [["steward_ledger", 1]], loot: "house", name: "thing.steward_chest" });
 });
 bus.on("crime", (e) => {
-  if (Q2.active("sq04") && ctx.worldId === "stewards_house")
+  if (Q.active("sq04") && ctx.worldId === "stewards_house")
     F3().sq04Seen = true;
 });
 quest2("sq05", { stages: {
@@ -34986,10 +35099,10 @@ quest2("sq05", { stages: {
 }, rewards: { gold: 300 } });
 bus.on("kill", (e) => {
   if (e.target.def && e.target.def.id === "hrolf") {
-    if (!Q2.active("sq05") && !Q2.done("sq05"))
-      Q2.start("sq05", 30);
-    else if (Q2.active("sq05"))
-      Q2.set("sq05", 30);
+    if (!Q.active("sq05") && !Q.done("sq05"))
+      Q.start("sq05", 30);
+    else if (Q.active("sq05"))
+      Q.set("sq05", 30);
   }
 });
 bus.on("interior_built", (e) => {
@@ -35008,14 +35121,14 @@ quest2("sq06", { stages: {
   30: { marker: npc("asbjorn", "hunters_camp") }
 }, rewards: { gold: 200 } });
 bus.on("kill", (e) => {
-  if (e.target.def && e.target.def.id === "hill_giant" && Q2.active("sq06") && Q2.stage("sq06") < 30)
-    Q2.set("sq06", 30);
+  if (e.target.def && e.target.def.id === "hill_giant" && Q.active("sq06") && Q.stage("sq06") < 30)
+    Q.set("sq06", 30);
 });
 bus.on("container_open", (e) => {
-  if (e.thing.cid === "giant_chest" && Q2.active("sq06") && Q2.stage("sq06") < 30) {
+  if (e.thing.cid === "giant_chest" && Q.active("sq06") && Q.stage("sq06") < 30) {
     const g = ai.find((b) => b.def && b.def.id === "hill_giant" && b.alive);
     if (!g || g.st.calm > 0)
-      Q2.set("sq06", 30);
+      Q.set("sq06", 30);
   }
 });
 quest2("sq07", { stages: { 10: { marker: npc("sigrun", "greystead") } }, rewards: { fn() {
@@ -35037,29 +35150,29 @@ quest2("sq08", { stages: {
   40: { marker: npc("asbjorn", "hunters_camp") }
 }, rewards: { items: [["hunting_bow", 1], ["steel_arrow", 20]] } });
 bus.on("kill", (e) => {
-  if (e.target.def && e.target.def.id === "deer" && e.kind === "arrow" && e.src && e.src.kind === "player" && Q2.at("sq08", 10))
-    Q2.set("sq08", 20);
+  if (e.target.def && e.target.def.id === "deer" && e.kind === "arrow" && e.src && e.src.kind === "player" && Q.at("sq08", 10))
+    Q.set("sq08", 20);
 });
 bus.on("take", (e) => {
-  if (e.id === "deer_hide" && Q2.at("sq08", 20))
-    Q2.set("sq08", 30);
-  if (e.id === "leather" && Q2.at("sq08", 30) && ctx.worldId === "hrimdal") {}
+  if (e.id === "deer_hide" && Q.at("sq08", 20))
+    Q.set("sq08", 30);
+  if (e.id === "leather" && Q.at("sq08", 30) && ctx.worldId === "hrimdal") {}
 });
 function stepSide() {
-  if (Q2.at("sq05", 10) && nearPlace2("fort_ashgrip", 70))
-    Q2.set("sq05", 20);
-  if (Q2.at("sq06", 10) && nearPlace2("big_stone_camp", 70))
-    Q2.set("sq06", 20);
+  if (Q.at("sq05", 10) && nearPlace2("fort_ashgrip", 70))
+    Q.set("sq05", 20);
+  if (Q.at("sq06", 10) && nearPlace2("big_stone_camp", 70))
+    Q.set("sq06", 20);
 }
 bus.on("bounty_board", () => {
-  const list = [["sq01", "board.wolves"], ["sq05", "board.ashgrip"]].filter(([q]) => !Q2.active(q) && !Q2.done(q));
+  const list = [["sq01", "board.wolves"], ["sq05", "board.ashgrip"]].filter(([q]) => !Q.active(q) && !Q.done(q));
   if (!list.length) {
     ask(T("thing.bounty_board"), T("board.empty"), [["ui.back", () => {}]]);
     return;
   }
   ask(T("thing.bounty_board"), list.map(([, l]) => T(l)).join(`
 
-`), list.map(([q]) => [["board.take", { quest: T("quest." + q + ".title") }], () => Q2.start(q)]).concat([["ui.back", () => {}]]));
+`), list.map(([q]) => [["board.take", { quest: T("quest." + q + ".title") }], () => Q.start(q)]).concat([["ui.back", () => {}]]));
 });
 function setupSide() {
   steppers.push(() => {
@@ -35535,28 +35648,28 @@ var TRADE = { t: "@c.trade", do: (b) => {
 var RENT = (inn) => ({ t: "@c.rent", if: () => !roomRented(inn), do: () => rentRoom(inn) ? "rented" : "no_gold" });
 var passBark = (npc, n = 2) => (b, kind) => kind === "pass" ? F4().mq4Done && Math.random() < 0.4 ? "dlg.c.bark_dragon" : "dlg." + npc + ".bark" + (1 + Math.floor(Math.random() * n)) : null;
 dlg("holger", {
-  greet: () => Q2.active("mq1") ? "mq1" : "hello",
+  greet: () => Q.active("mq1") ? "mq1" : "hello",
   bark: passBark("holger", 1),
   nodes: { hello: { say: ["hello"] }, mq1: { say: ["mq1"] } },
-  choices: [Object.assign({}, TRADE, { if: () => !Q2.active("mq1") })]
+  choices: [Object.assign({}, TRADE, { if: () => !Q.active("mq1") })]
 });
 dlg("gyda", {
-  greet: () => Q2.at("mq2", 10) ? "news" : "hello",
+  greet: () => Q.at("mq2", 10) ? "news" : "hello",
   bark: passBark("gyda"),
-  nodes: { news: { say: ["news1", "news2"], do: () => Q2.set("mq2", 20) }, hello: { say: ["hello"] }, rented: { say: ["rented"] }, no_gold: { say: ["no_gold"] }, rumor: { say: ["rumor"] } },
+  nodes: { news: { say: ["news1", "news2"], do: () => Q.set("mq2", 20) }, hello: { say: ["hello"] }, rented: { say: ["rented"] }, no_gold: { say: ["no_gold"] }, rumor: { say: ["rumor"] } },
   choices: [TRADE, RENT("pine_hearth"), { t: "rumor", go: "rumor" }]
 });
 dlg("bjarke", {
   greet: () => "hello",
   bark: passBark("bjarke"),
-  nodes: { hello: { say: ["hello"] }, hammer: { say: ["hammer1", "hammer2"], do: () => Q2.start("sq02") }, teach: { say: ["teach1", "teach2"] }, thanks: { say: ["thanks"] } },
+  nodes: { hello: { say: ["hello"] }, hammer: { say: ["hammer1", "hammer2"], do: () => Q.start("sq02") }, teach: { say: ["teach1", "teach2"] }, thanks: { say: ["thanks"] } },
   choices: [
     TRADE,
-    { t: "help", if: () => !Q2.active("sq02") && !Q2.done("sq02"), go: "hammer" },
-    { t: "how", if: () => Q2.active("sq02") && Q2.stage("sq02") >= 30 && Q2.stage("sq02") < 60, go: "teach" },
-    { t: "give_hammer", if: () => Q2.at("sq02", 60) && has2("bjarke_hammer_quest"), do: () => {
+    { t: "help", if: () => !Q.active("sq02") && !Q.done("sq02"), go: "hammer" },
+    { t: "how", if: () => Q.active("sq02") && Q.stage("sq02") >= 30 && Q.stage("sq02") < 60, go: "teach" },
+    { t: "give_hammer", if: () => Q.at("sq02", 60) && has2("bjarke_hammer_quest"), do: () => {
       take("bjarke_hammer_quest");
-      Q2.complete("sq02");
+      Q.complete("sq02");
       return "thanks";
     } }
   ]
@@ -35564,26 +35677,26 @@ dlg("bjarke", {
 dlg("oddny", {
   greet: () => "hello",
   bark: passBark("oddny"),
-  nodes: { hello: { say: ["hello"] }, fever: { say: ["fever1", "fever2"], do: () => Q2.start("sq03") }, how: { say: ["how"] } },
-  choices: [TRADE, { t: "fever", if: () => !Q2.active("sq03") && !Q2.done("sq03"), go: "fever" }, { t: "how", if: () => Q2.active("sq03") && Q2.stage("sq03") <= 20, go: "how" }]
+  nodes: { hello: { say: ["hello"] }, fever: { say: ["fever1", "fever2"], do: () => Q.start("sq03") }, how: { say: ["how"] } },
+  choices: [TRADE, { t: "fever", if: () => !Q.active("sq03") && !Q.done("sq03"), go: "fever" }, { t: "how", if: () => Q.active("sq03") && Q.stage("sq03") <= 20, go: "how" }]
 });
 dlg("eskil", {
   greet: () => "hello",
   bark: passBark("eskil"),
-  nodes: { hello: { say: ["hello"] }, wolves: { say: ["wolves1", "wolves2"], do: () => Q2.start("sq01") }, paid: { say: ["paid"] } },
-  choices: [{ t: "wolves", if: () => !Q2.active("sq01") && !Q2.done("sq01"), go: "wolves" }, { t: "wolves_done", if: () => Q2.at("sq01", 20), do: () => {
-    Q2.complete("sq01");
+  nodes: { hello: { say: ["hello"] }, wolves: { say: ["wolves1", "wolves2"], do: () => Q.start("sq01") }, paid: { say: ["paid"] } },
+  choices: [{ t: "wolves", if: () => !Q.active("sq01") && !Q.done("sq01"), go: "wolves" }, { t: "wolves_done", if: () => Q.at("sq01", 20), do: () => {
+    Q.complete("sq01");
     return "paid";
   } }]
 });
 dlg("maren", {
-  greet: () => Q2.active("sq03") && Q2.stage("sq03") < 30 ? "sick" : "hello",
+  greet: () => Q.active("sq03") && Q.stage("sq03") < 30 ? "sick" : "hello",
   bark: passBark("maren"),
   nodes: { hello: { say: ["hello"] }, sick: { say: ["sick"] }, better: { say: ["better"] } },
-  choices: [TRADE, { t: "potion", if: () => Q2.at("sq03", 30) && !!frostPotion(), do: () => {
+  choices: [TRADE, { t: "potion", if: () => Q.at("sq03", 30) && !!frostPotion(), do: () => {
     const p = frostPotion();
     removeItem(S16(), p.uid, 1);
-    Q2.complete("sq03");
+    Q.complete("sq03");
     return "better";
   } }]
 });
@@ -35591,46 +35704,46 @@ dlg("arne", { greet: () => "hello", bark: passBark("arne"), nodes: { hello: { sa
 dlg("asbjorn", {
   greet: () => "hello",
   bark: passBark("asbjorn"),
-  nodes: { hello: { say: ["hello"] }, lesson: { say: ["lesson1", "lesson2"], do: () => Q2.start("sq08") }, good: { say: ["good"] }, giant: { say: ["giant1", "giant2"], do: () => Q2.start("sq06") }, paid: { say: ["paid"] } },
+  nodes: { hello: { say: ["hello"] }, lesson: { say: ["lesson1", "lesson2"], do: () => Q.start("sq08") }, good: { say: ["good"] }, giant: { say: ["giant1", "giant2"], do: () => Q.start("sq06") }, paid: { say: ["paid"] } },
   choices: [
     TRADE,
-    { t: "lesson", if: () => !Q2.active("sq08") && !Q2.done("sq08"), go: "lesson" },
-    { t: "leather", if: () => Q2.at("sq08", 40) && has2("leather"), do: () => {
+    { t: "lesson", if: () => !Q.active("sq08") && !Q.done("sq08"), go: "lesson" },
+    { t: "leather", if: () => Q.at("sq08", 40) && has2("leather"), do: () => {
       take("leather");
-      Q2.complete("sq08");
+      Q.complete("sq08");
       return "good";
     } },
-    { t: "giant", if: () => !Q2.active("sq06") && !Q2.done("sq06"), go: "giant" },
-    { t: "giant_done", if: () => Q2.at("sq06", 30), do: () => {
-      Q2.complete("sq06");
+    { t: "giant", if: () => !Q.active("sq06") && !Q.done("sq06"), go: "giant" },
+    { t: "giant_done", if: () => Q.at("sq06", 30), do: () => {
+      Q.complete("sq06");
       return "paid";
     } }
   ]
 });
 dlg("ylva", {
-  greet: () => Q2.at("mq4", 50) ? "mq4" : Q2.at("mq6", 50) ? "mq6" : "hello",
+  greet: () => Q.at("mq4", 50) ? "mq4" : Q.at("mq6", 50) ? "mq6" : "hello",
   bark: passBark("ylva", 1),
-  nodes: { hello: { say: ["hello"] }, letter: { say: ["letter1", "letter2"], do: () => Q2.set("mq2", 30) }, mq4: { say: ["mq4_1", "mq4_2"], do: () => Q2.complete("mq4"), end: true }, mq6: { say: ["mq6_1", "mq6_2"], do: () => Q2.complete("mq6"), end: true }, dragons: { say: ["dragons"] } },
-  choices: [{ t: "letter", if: () => Q2.at("mq2", 20) && has2("sealed_letter"), do: () => {
+  nodes: { hello: { say: ["hello"] }, letter: { say: ["letter1", "letter2"], do: () => Q.set("mq2", 30) }, mq4: { say: ["mq4_1", "mq4_2"], do: () => Q.complete("mq4"), end: true }, mq6: { say: ["mq6_1", "mq6_2"], do: () => Q.complete("mq6"), end: true }, dragons: { say: ["dragons"] } },
+  choices: [{ t: "letter", if: () => Q.at("mq2", 20) && has2("sealed_letter"), do: () => {
     take("sealed_letter");
     return "letter";
-  } }, { t: "dragons", if: () => Q2.done("mq2"), go: "dragons" }]
+  } }, { t: "dragons", if: () => Q.done("mq2"), go: "dragons" }]
 });
 dlg("eyvind", {
-  greet: () => Q2.at("mq2", 30) ? "barrow" : "hello",
+  greet: () => Q.at("mq2", 30) ? "barrow" : "hello",
   bark: passBark("eyvind", 1),
-  nodes: { hello: { say: ["hello"] }, barrow: { say: ["barrow1", "barrow2"], do: () => Q2.complete("mq2") }, runes: { say: ["runes1", "runes2"], do: () => Q2.complete("mq3"), end: true }, lore: { say: ["lore"] } },
-  choices: [TRADE, { t: "runes", if: () => Q2.at("mq3", 60) && has2("runes_copy"), do: () => {
+  nodes: { hello: { say: ["hello"] }, barrow: { say: ["barrow1", "barrow2"], do: () => Q.complete("mq2") }, runes: { say: ["runes1", "runes2"], do: () => Q.complete("mq3"), end: true }, lore: { say: ["lore"] } },
+  choices: [TRADE, { t: "runes", if: () => Q.at("mq3", 60) && has2("runes_copy"), do: () => {
     take("runes_copy");
     return "runes";
-  } }, { t: "lore", if: () => Q2.done("mq2"), go: "lore" }]
+  } }, { t: "lore", if: () => Q.done("mq2"), go: "lore" }]
 });
 dlg("leif", {
-  greet: () => Q2.at("mq4", 40) ? "after" : Q2.at("mq4", 10) ? "go" : "hello",
+  greet: () => Q.at("mq4", 40) ? "after" : Q.at("mq4", 10) ? "go" : "hello",
   bark: passBark("leif", 1),
-  nodes: { hello: { say: ["hello"] }, go: { say: ["run_in"] }, after: { say: ["after1", "after2"], do: () => Q2.set("mq4", 50) }, bounty: { say: ["bounty1", "bounty2"], do: () => Q2.start("sq05") }, paid: { say: ["paid"] } },
-  choices: [{ t: "bounty", if: () => !Q2.active("sq05") && !Q2.done("sq05"), go: "bounty" }, { t: "hrolf_done", if: () => Q2.at("sq05", 30), do: () => {
-    Q2.complete("sq05");
+  nodes: { hello: { say: ["hello"] }, go: { say: ["run_in"] }, after: { say: ["after1", "after2"], do: () => Q.set("mq4", 50) }, bounty: { say: ["bounty1", "bounty2"], do: () => Q.start("sq05") }, paid: { say: ["paid"] } },
+  choices: [{ t: "bounty", if: () => !Q.active("sq05") && !Q.done("sq05"), go: "bounty" }, { t: "hrolf_done", if: () => Q.at("sq05", 30), do: () => {
+    Q.complete("sq05");
     return "paid";
   } }]
 });
@@ -35638,13 +35751,13 @@ dlg("gunnar", { greet: () => "hello", bark: passBark("gunnar", 1), nodes: { hell
 dlg("knut", {
   greet: () => "hello",
   bark: passBark("knut", 1),
-  nodes: { hello: { say: ["hello"] }, ledger: { say: ["ledger1", "ledger2"], do: () => Q2.start("sq04") }, paid: { say: ["paid"] } },
+  nodes: { hello: { say: ["hello"] }, ledger: { say: ["ledger1", "ledger2"], do: () => Q.start("sq04") }, paid: { say: ["paid"] } },
   choices: [
     Object.assign({}, TRADE, { if: () => !!F4().fence }),
-    { t: "work", if: () => !Q2.active("sq04") && !Q2.done("sq04"), go: "ledger" },
-    { t: "give_ledger", if: () => Q2.at("sq04", 30) && has2("steward_ledger"), do: () => {
+    { t: "work", if: () => !Q.active("sq04") && !Q.done("sq04"), go: "ledger" },
+    { t: "give_ledger", if: () => Q.at("sq04", 30) && has2("steward_ledger"), do: () => {
       take("steward_ledger");
-      Q2.complete("sq04");
+      Q.complete("sq04");
       return "paid";
     } }
   ]
@@ -35652,18 +35765,18 @@ dlg("knut", {
 dlg("sigrun", {
   greet: () => follower.is("sigrun") ? "mine" : "hello",
   bark: (b, k) => k === "pass" && !follower.is("sigrun") ? "dlg.sigrun.bark1" : null,
-  nodes: { hello: { say: ["hello"] }, terms: { say: ["terms"], do: () => Q2.start("sq07") }, hired: { say: ["hired"] }, brawl: { say: ["brawl"], end: true, do: (b) => ctx.game.after(0.4, () => startBrawl(b)) }, no_gold: { say: ["no_gold"] }, mine: { say: ["mine"] }, wait: { say: ["wait"] }, follow: { say: ["follow"] }, part: { say: ["part"] } },
+  nodes: { hello: { say: ["hello"] }, terms: { say: ["terms"], do: () => Q.start("sq07") }, hired: { say: ["hired"] }, brawl: { say: ["brawl"], end: true, do: (b) => ctx.game.after(0.4, () => startBrawl(b)) }, no_gold: { say: ["no_gold"] }, mine: { say: ["mine"] }, wait: { say: ["wait"] }, follow: { say: ["follow"] }, part: { say: ["part"] } },
   choices: [
-    { t: "hire", if: () => !Q2.active("sq07") && !Q2.done("sq07"), go: "terms" },
-    { t: "pay", if: () => Q2.active("sq07"), do: () => {
+    { t: "hire", if: () => !Q.active("sq07") && !Q.done("sq07"), go: "terms" },
+    { t: "pay", if: () => Q.active("sq07"), do: () => {
       if (S16().gold < 200)
         return "no_gold";
       S16().gold -= 200;
       ctx.audio && ctx.audio.sfx("coins");
-      Q2.complete("sq07");
+      Q.complete("sq07");
       return "hired";
     } },
-    { t: "brawl", if: () => Q2.active("sq07"), go: "brawl" },
+    { t: "brawl", if: () => Q.active("sq07"), go: "brawl" },
     { t: "wait", if: () => follower.is("sigrun") && follower.following(), do: () => {
       follower.wait();
       return "wait";
@@ -35680,7 +35793,7 @@ dlg("sigrun", {
       follower.part();
       return "part";
     } },
-    { t: "rehire", if: () => Q2.done("sq07") && !follower.is("sigrun"), do: () => {
+    { t: "rehire", if: () => Q.done("sq07") && !follower.is("sigrun"), do: () => {
       bus.emit("follower_hire", { id: "sigrun" });
       return "hired";
     } }
@@ -35701,17 +35814,17 @@ dlg("solvi", {
   } }]
 });
 dlg("halvar", {
-  greet: () => Q2.at("mq5", 20) ? "teach" : Q2.at("mq5", 50) ? "jarnorm" : "hello",
+  greet: () => Q.at("mq5", 20) ? "teach" : Q.at("mq5", 50) ? "jarnorm" : "hello",
   bark: passBark("halvar", 1),
   nodes: { hello: { say: ["hello"] }, teach: { say: ["teach1", "teach2"], do: () => {
     learnWord("kolt", true);
     learnWord("skard", true);
-    Q2.set("mq5", 30);
-  }, end: true }, jarnorm: { say: ["jarnorm1", "jarnorm2", "jarnorm3"], do: () => Q2.complete("mq5"), end: true } },
+    Q.set("mq5", 30);
+  }, end: true }, jarnorm: { say: ["jarnorm1", "jarnorm2", "jarnorm3"], do: () => Q.complete("mq5"), end: true } },
   choices: []
 });
-dlg("ingrid", { greet: () => Q2.at("mq5", 30) ? "push" : "hello", bark: passBark("ingrid", 1), nodes: { hello: { say: ["hello"] }, push: { say: ["push"] } }, choices: [] });
-dlg("tormod", { greet: () => Q2.at("mq5", 40) ? "rush" : "hello", bark: passBark("tormod", 1), nodes: { hello: { say: ["hello"] }, rush: { say: ["rush"] } }, choices: [] });
+dlg("ingrid", { greet: () => Q.at("mq5", 30) ? "push" : "hello", bark: passBark("ingrid", 1), nodes: { hello: { say: ["hello"] }, push: { say: ["push"] } }, choices: [] });
+dlg("tormod", { greet: () => Q.at("mq5", 40) ? "rush" : "hello", bark: passBark("tormod", 1), nodes: { hello: { say: ["hello"] }, rush: { say: ["rush"] } }, choices: [] });
 dlg("guard", {
   greet: () => "hello",
   bark: (b, k) => k === "pass" ? F4().mq4Done && Math.random() < 0.5 ? "dlg.guard.bark_mq4" : pick2(["dlg.guard.bark1", "dlg.guard.bark2", "dlg.guard.bark3"]) : k === "search" ? "dlg.guard.search" : k === "lost" ? "dlg.guard.lost" : null,
@@ -35800,7 +35913,7 @@ function aboutScreen() {
         s.scrollEl.scrollTop += 600 * dt;
       return false;
     },
-    actions: [["confirm", "ui.back", (s) => close(s)], ["cancel", "ui.back", (s) => s.back()]]
+    actions: [["cancel", "ui.back", (s) => s.back()]]
   });
 }
 var HELP = ["move", "fight", "magic", "shout", "sneak", "skills", "craft", "world", "together"];
@@ -36464,7 +36577,8 @@ function registerScenes(game, info) {}
 var TIPS = 10;
 function boot(game, info) {
   registerScenes(game, info);
-  new E.Shell(game, { tv: true, theme: { ink: "#e8eef6", paper: "rgba(11,18,32,.92)", accent: "#8fd8ff", muted: "#9fb4cc", danger: "#ff6b5a", line: "#2f4766", font: 'system-ui, "Segoe UI", Roboto, Arial, sans-serif', titleFont: 'Georgia, "Times New Roman", serif' } });
+  const scale = () => Math.min(Math.min(30, Math.max(18, innerWidth * 0.016)) / 14, innerHeight / 610);
+  new E.Shell(game, { tv: true, theme: { scale, ink: "#e8eef6", paper: "rgba(11,18,32,.92)", accent: "#8fd8ff", muted: "#9fb4cc", danger: "#ff6b5a", line: "#2f4766", font: 'system-ui, "Segoe UI", Roboto, Arial, sans-serif', titleFont: 'Georgia, "Times New Roman", serif' } });
   const syncSettings = () => {
     const s = game.settings || {};
     ctx.settings = { fov: s.fov || 70, lookMouse: s.lookmouse ?? 1, lookPad: s.lookpad ?? 1, aimAssist: s.aimassist || "low", crosshair: s.crosshair || "auto", dmgNumbers: !!s.dmgnumbers, subtitles: s.subtitles !== false, textSize: s.textsize || "normal", sprintHold: s.sprinthold || "hold" };

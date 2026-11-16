@@ -8,8 +8,10 @@ import { scenes, registerScenes } from './scenes.js';
 const TIPS = 10;
 export function boot(game, info) {
   registerScenes(game, info);
-  // the standard menu (pause, settings, controls) in the game's own look, scaled for a TV across the room
-  new E.Shell(game, { tv: true, theme: { ink: '#e8eef6', paper: 'rgba(11,18,32,.92)', accent: '#8fd8ff', muted: '#9fb4cc', danger: '#ff6b5a', line: '#2f4766', font: 'system-ui, "Segoe UI", Roboto, Arial, sans-serif', titleFont: 'Georgia, "Times New Roman", serif' } });
+  // the standard menu (pause, settings, controls) in the game's own look, scaled for a TV across the room: the engine's
+  // TV size (from the window's width), made smaller only when the window is too short for the pause menu's ten rows
+  const scale = () => Math.min(Math.min(30, Math.max(18, innerWidth * .016)) / 14, innerHeight / 610);
+  new E.Shell(game, { tv: true, theme: { scale, ink: '#e8eef6', paper: 'rgba(11,18,32,.92)', accent: '#8fd8ff', muted: '#9fb4cc', danger: '#ff6b5a', line: '#2f4766', font: 'system-ui, "Segoe UI", Roboto, Arial, sans-serif', titleFont: 'Georgia, "Times New Roman", serif' } });
   const syncSettings = () => { const s = game.settings || {}; ctx.settings = { fov: s.fov || 70, lookMouse: s.lookmouse ?? 1, lookPad: s.lookpad ?? 1, aimAssist: s.aimassist || 'low', crosshair: s.crosshair || 'auto', dmgNumbers: !!s.dmgnumbers, subtitles: s.subtitles !== false, textSize: s.textsize || 'normal', sprintHold: s.sprinthold || 'hold' }; ctx.difficulty = s.difficulty || 'normal'; };
   syncSettings(); game.hook('step', syncSettings);
   const steps = info ? scenes.roundSteps(info) : scenes.campaignSteps();
